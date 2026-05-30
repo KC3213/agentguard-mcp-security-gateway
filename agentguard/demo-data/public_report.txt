@@ -1,0 +1,13 @@
+AgentGuard Synthetic Quarterly Support Report
+
+This file contains non-sensitive, fictional operational notes for demo use.
+
+Summary:
+- Ticket volume increased by 8 percent this quarter.
+- Average first response time improved from 4.8 hours to 3.6 hours.
+- The support team closed 91 percent of low-priority tickets within SLA.
+- No real customer, employee, company, credential, or private data appears in this file.
+
+Recommended action:
+Create a follow-up ticket for the documentation team to simplify onboarding articles.
+

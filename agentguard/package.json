@@ -1,0 +1,59 @@
+{
+  "name": "agentguard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AgentGuard Suite: MCP tool scanner, runtime firewall, and flight recorder for AI agents.",
+  "scripts": {
+    "dev": "npm run db:setup && concurrently -n api,web -c cyan,green \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+    "dev:standalone": "node prototype/server.mjs",
+    "build": "npm run build -ws --if-present",
+    "test": "npm run test -ws --if-present",
+    "test:standalone": "node prototype/test.mjs",
+    "lint": "npm run typecheck -ws --if-present",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:setup": "npm run db:push && npm run db:seed",
+    "prisma:generate": "prisma generate",
+    "postinstall": "prisma generate"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.18.0",
+    "@prisma/client": "^6.8.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "lucide-react": "^0.468.0",
+    "prisma": "^6.8.2",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "tsx": "^4.19.2",
+    "vite": "^6.0.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@types/supertest": "^6.0.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.49",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "supertest": "^7.0.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

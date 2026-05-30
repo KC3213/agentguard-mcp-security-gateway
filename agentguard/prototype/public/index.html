@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgentGuard Standalone</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">AG</div>
+          <div>
+            <strong>AgentGuard</strong>
+            <span>MCP security gateway</span>
+          </div>
+        </div>
+        <nav id="nav"></nav>
+      </aside>
+      <main>
+        <header class="topbar">
+          <div>
+            <h1 id="view-title">Agent Console</h1>
+            <p id="toast">Ready</p>
+          </div>
+          <div class="toolbar">
+            <select id="role">
+              <option value="employee">employee</option>
+              <option value="reviewer">reviewer</option>
+              <option value="admin">admin</option>
+            </select>
+            <button id="refresh">Refresh</button>
+          </div>
+        </header>
+        <section class="metrics" id="metrics"></section>
+        <section class="panel" id="content"></section>
+      </main>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
+

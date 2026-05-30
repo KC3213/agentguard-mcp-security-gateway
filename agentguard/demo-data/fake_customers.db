@@ -1,0 +1,3 @@
+This placeholder marks that the prototype uses a local synthetic SQLite database at prisma/dev.db.
+The actual Customer table is seeded by prisma/seed.ts and contains only fictional records.
+

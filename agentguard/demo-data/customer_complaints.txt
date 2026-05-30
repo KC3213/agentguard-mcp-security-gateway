@@ -1,0 +1,22 @@
+AgentGuard Synthetic Customer Complaint Export
+
+This document is intentionally fictional and contains fake PII-like values so the firewall can demonstrate sensitive-data controls.
+
+1. Ada Lovelace
+   Email: ada.lovelace@demo.customer
+   Phone: 555-010-1111
+   Complaint: Integration setup took longer than expected.
+
+2. Grace Hopper
+   Email: grace.hopper@demo.customer
+   Phone: 555-010-2222
+   Complaint: Billing report was confusing after a plan change.
+
+3. Katherine Johnson
+   Email: katherine.johnson@demo.customer
+   Phone: 555-010-3333
+   Complaint: Requested clearer export status messages.
+
+Safe summary:
+Three fictional customers reported onboarding, billing, and export clarity issues.
+

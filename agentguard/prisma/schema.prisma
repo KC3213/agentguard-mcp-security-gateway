@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  role      String
+  name      String
+  createdAt DateTime @default(now())
+}
+
+model McpServer {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  endpoint    String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tools       Tool[]
+}
+
+model Tool {
+  id          String   @id @default(cuid())
+  serverId    String
+  name        String   @unique
+  description String
+  inputSchema String
+  status      String
+  baseRisk    Int
+  riskScore   Int
+  riskLevel   String
+  trustScore  Int
+  reasons     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  server      McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+}
+
+model Policy {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  enabled     Boolean  @default(true)
+  severity    String
+  createdAt   DateTime @default(now())
+}
+
+model AgentSession {
+  id          String     @id @default(cuid())
+  prompt      String
+  userEmail   String
+  userRole    String
+  status      String
+  finalAnswer String?
+  planned     String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  toolCalls   ToolCall[]
+}
+
+model ToolCall {
+  id          String       @id @default(cuid())
+  sessionId   String?
+  toolName    String
+  purpose     String
+  arguments   String
+  output      String?
+  decision    String
+  riskScore   Int
+  riskLevel   String
+  reasons     String
+  status      String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  session     AgentSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  approval    Approval?
+}
+
+model Approval {
+  id             String   @id @default(cuid())
+  toolCallId     String   @unique
+  status         String
+  requestedBy    String
+  reviewedBy     String?
+  rawArguments   String
+  redactedArgs   String?
+  createdAt      DateTime @default(now())
+  reviewedAt     DateTime?
+  toolCall       ToolCall @relation(fields: [toolCallId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  eventType  String
+  entityType String
+  entityId   String?
+  actor      String?
+  data       String
+  prevHash   String?
+  hash       String
+  createdAt  DateTime @default(now())
+}
+
+model Customer {
+  id             Int    @id @default(autoincrement())
+  name           String
+  email          String
+  phone          String
+  tier           String
+  revenue        Int
+  openComplaints Int
+}
+

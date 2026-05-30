@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vite/
+coverage/
+*.log
+.env
+.DS_Store
+prisma/dev.db
+prisma/dev.db-journal
+.agentguard-runtime/

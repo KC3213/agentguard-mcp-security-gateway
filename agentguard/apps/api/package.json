@@ -1,0 +1,16 @@
+{
+  "name": "@agentguard/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentguard/policy-engine": "0.1.0",
+    "@agentguard/shared": "0.1.0"
+  }
+}
