@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
+  Bot,
   CheckCircle2,
   ClipboardCheck,
   Database,
@@ -11,7 +13,9 @@ import {
   RefreshCw,
   Shield,
   SlidersHorizontal,
+  Sparkles,
   TerminalSquare,
+  Workflow,
   XCircle
 } from "lucide-react";
 import { io } from "socket.io-client";
@@ -40,6 +44,8 @@ const demoPrompts = [
   "Use an unknown tool"
 ];
 
+type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
+
 function riskClass(level: string) {
   if (level === "CRITICAL") return "badge badge-critical";
   if (level === "HIGH") return "badge badge-high";
@@ -67,6 +73,10 @@ function MetricCard({ label, value, icon: Icon }: { label: string; value: number
       <Icon size={22} />
     </div>
   );
+}
+
+function workflowClass(state: WorkflowState) {
+  return `workflow-step workflow-${state}`;
 }
 
 export function App() {
@@ -147,6 +157,52 @@ export function App() {
     () => approvals.filter((approval) => approval.status === "PENDING"),
     [approvals]
   );
+  const workflowStages = useMemo(() => {
+    const calls = activeSession?.toolCalls ?? [];
+    const hasSession = Boolean(activeSession);
+    const hasBlocked = activeSession?.status === "BLOCKED" || calls.some((call) => call.status.includes("BLOCK"));
+    const isWaiting = activeSession?.status === "WAITING_FOR_APPROVAL";
+    const hasExecuted = calls.some((call) => call.status.includes("EXECUTED"));
+
+    return [
+      {
+        label: "Prompt",
+        detail: hasSession ? "Request captured" : "Write or choose a task",
+        view: "console" as View,
+        state: hasSession ? "done" : "active"
+      },
+      {
+        label: "Plan",
+        detail: hasSession ? `${activeSession?.planned.length ?? 0} tool call(s)` : "Planner is ready",
+        view: "console" as View,
+        state: hasSession ? "done" : "idle"
+      },
+      {
+        label: "Policy",
+        detail: hasBlocked ? "Unsafe action caught" : hasSession ? "Risk checks applied" : "Waiting for a run",
+        view: "tools" as View,
+        state: hasBlocked ? "blocked" : hasSession ? "done" : "idle"
+      },
+      {
+        label: "Action",
+        detail: hasExecuted ? "MCP tool executed" : isWaiting ? "Paused safely" : "No tool output yet",
+        view: "flight" as View,
+        state: hasExecuted ? "done" : isWaiting ? "waiting" : "idle"
+      },
+      {
+        label: "Review",
+        detail: pendingApprovals.length ? `${pendingApprovals.length} pending` : "No pending review",
+        view: "approvals" as View,
+        state: pendingApprovals.length ? "waiting" : hasSession ? "done" : "idle"
+      },
+      {
+        label: "Audit",
+        detail: metrics.calls ? "Recorded in timeline" : "Audit trail ready",
+        view: "audit" as View,
+        state: metrics.calls ? "done" : "idle"
+      }
+    ] satisfies Array<{ label: string; detail: string; view: View; state: WorkflowState }>;
+  }, [activeSession, metrics.calls, pendingApprovals.length]);
 
   async function runSession() {
     setLoading(true);
@@ -202,10 +258,19 @@ export function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <Shield size={28} />
+          <div className="brand-mark">
+            <Shield size={24} />
+          </div>
           <div>
             <strong>AgentGuard</strong>
             <span>MCP security gateway</span>
+          </div>
+        </div>
+        <div className="sidebar-status">
+          <span className="status-dot" />
+          <div>
+            <strong>Runtime online</strong>
+            <span>Gateway enforcing policy</span>
           </div>
         </div>
         <nav>
@@ -224,6 +289,7 @@ export function App() {
       <main className="main">
         <header className="topbar">
           <div>
+            <p className="eyebrow">Agent workflow control plane</p>
             <h1>{navItems.find((item) => item.id === view)?.label}</h1>
             <p>{toast}</p>
           </div>
@@ -246,33 +312,69 @@ export function App() {
           <MetricCard label="Blocked" value={metrics.blocked} icon={AlertTriangle} />
         </section>
 
+        <section className="workflow-rail" aria-label="AgentGuard workflow">
+          <div className="workflow-title">
+            <Workflow size={18} />
+            <span>Live workflow</span>
+          </div>
+          <div className="workflow-steps">
+            {workflowStages.map((stage, index) => (
+              <button key={stage.label} className={workflowClass(stage.state)} onClick={() => setView(stage.view)}>
+                <span className="workflow-index">{index + 1}</span>
+                <span>
+                  <strong>{stage.label}</strong>
+                  <small>{stage.detail}</small>
+                </span>
+                {index < workflowStages.length - 1 ? <ArrowRight size={15} className="workflow-arrow" /> : null}
+              </button>
+            ))}
+          </div>
+        </section>
+
         {view === "console" && (
-          <section className="panel">
+          <section className="panel console-panel">
             <div className="console-layout">
               <div className="console-input">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 1</span>
+                    <h2>Choose an agent task</h2>
+                  </div>
+                  <Bot size={22} />
+                </div>
                 <label htmlFor="prompt">Prompt</label>
                 <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
                 <div className="scenario-grid">
                   {demoPrompts.map((item) => (
-                    <button key={item} onClick={() => setPrompt(item)}>
+                    <button key={item} className={prompt === item ? "scenario-active" : ""} onClick={() => setPrompt(item)}>
                       {item}
                     </button>
                   ))}
                 </div>
                 <button className="primary-button" onClick={runSession} disabled={loading}>
-                  <Play size={18} />
-                  Run Agent
+                  {loading ? <Sparkles size={18} /> : <Play size={18} />}
+                  {loading ? "Running workflow" : "Run Agent"}
                 </button>
               </div>
               <div className="console-output">
-                <h2>Latest Session</h2>
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 2</span>
+                    <h2>Inspect gateway decision</h2>
+                  </div>
+                  <Shield size={22} />
+                </div>
                 {activeSession ? (
                   <>
                     <p className="answer">{activeSession.finalAnswer}</p>
                     <Timeline calls={activeSession.toolCalls ?? []} />
                   </>
                 ) : (
-                  <p className="muted">No session selected.</p>
+                  <div className="empty-state">
+                    <Workflow size={28} />
+                    <strong>No workflow run yet</strong>
+                    <span>Pick a scenario and run the agent to see policy checks, MCP calls, approvals, and audit events.</span>
+                  </div>
                 )}
               </div>
             </div>
