@@ -81,3 +81,15 @@ export interface Metrics {
   blocked: number;
 }
 
+export interface McpLabResult {
+  message: string;
+  decision: FirewallDecision;
+  riskScore: number;
+  riskLevel: RiskLevel;
+  reasons: string[];
+  status: string;
+  output?: unknown;
+  redactedArguments?: Record<string, unknown>;
+  toolCall?: ToolCall;
+  approval?: Approval;
+}

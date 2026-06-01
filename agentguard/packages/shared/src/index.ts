@@ -56,6 +56,14 @@ export interface SessionRequest {
   userRole: "employee" | "reviewer" | "admin";
 }
 
+export interface McpLabRequest {
+  toolName: string;
+  arguments: JsonRecord;
+  purpose: string;
+  userEmail: string;
+  userRole: "employee" | "reviewer" | "admin";
+}
+
 export interface SessionResponse {
   sessionId: string;
   status: "COMPLETED" | "WAITING_FOR_APPROVAL" | "BLOCKED";
@@ -65,6 +73,14 @@ export interface SessionResponse {
 
 export const sessionRequestSchema = z.object({
   prompt: z.string().min(3).max(4000),
+  userEmail: z.string().email().default("employee@agentguard.local"),
+  userRole: z.enum(["employee", "reviewer", "admin"]).default("employee")
+});
+
+export const mcpLabRequestSchema = z.object({
+  toolName: z.string().min(1).max(100),
+  arguments: z.record(z.unknown()).default({}),
+  purpose: z.string().min(3).max(500).default("Manual MCP Lab tool call"),
   userEmail: z.string().email().default("employee@agentguard.local"),
   userRole: z.enum(["employee", "reviewer", "admin"]).default("employee")
 });
@@ -80,4 +96,3 @@ export const approvalActionSchema = z.object({
 export const redactedApprovalSchema = approvalActionSchema.extend({
   redactedArguments: z.record(z.unknown()).optional()
 });
-

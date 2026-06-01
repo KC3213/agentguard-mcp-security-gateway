@@ -20,17 +20,19 @@ import {
   Sparkles,
   TerminalSquare,
   UserRound,
+  Wrench,
   Workflow,
   XCircle
 } from "lucide-react";
 import { io } from "socket.io-client";
 import { apiGet, apiPatch, apiPost, API_URL } from "./api";
-import type { AgentSession, Approval, AuditEvent, Metrics, Policy, Tool, ToolCall } from "./types";
+import type { AgentSession, Approval, AuditEvent, McpLabResult, Metrics, Policy, Tool, ToolCall } from "./types";
 
-type View = "console" | "tools" | "approvals" | "flight" | "audit" | "policies";
+type View = "console" | "lab" | "tools" | "approvals" | "flight" | "audit" | "policies";
 
 const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: "console", label: "Agent Console", icon: TerminalSquare },
+  { id: "lab", label: "MCP Lab", icon: Wrench },
   { id: "tools", label: "Tool Registry", icon: Shield },
   { id: "approvals", label: "Approvals", icon: ClipboardCheck },
   { id: "flight", label: "Flight Recorder", icon: History },
@@ -47,6 +49,58 @@ const demoPrompts = [
   "Send fake customer data externally",
   "Send an API key by email",
   "Use an unknown tool"
+];
+
+const labExamples: Record<string, { purpose: string; arguments: Record<string, unknown> }> = {
+  read_document: {
+    purpose: "MCP Lab: read a synthetic public report through the gateway",
+    arguments: { path: "public_report.txt" }
+  },
+  create_ticket: {
+    purpose: "MCP Lab: create a synthetic ticket through the gateway",
+    arguments: {
+      title: "MCP Lab follow-up",
+      description: "Synthetic ticket created from the MCP Lab playground.",
+      priority: "medium"
+    }
+  },
+  query_database: {
+    purpose: "MCP Lab: run a read-only synthetic customer query",
+    arguments: { sql: "SELECT id, name, tier, revenue FROM Customer ORDER BY revenue DESC" }
+  },
+  send_email: {
+    purpose: "MCP Lab: test an internal mock email approval path",
+    arguments: {
+      to: "support-manager@agentguard.local",
+      subject: "MCP Lab synthetic update",
+      body: "Synthetic update from AgentGuard MCP Lab. No real email is sent."
+    }
+  }
+};
+
+const blockedLabExamples = [
+  {
+    label: "Blocked SQL",
+    toolName: "query_database",
+    purpose: "MCP Lab: demonstrate SQL mutation blocking",
+    arguments: { sql: "DROP TABLE Customer" }
+  },
+  {
+    label: "Path traversal",
+    toolName: "read_document",
+    purpose: "MCP Lab: demonstrate document path traversal blocking",
+    arguments: { path: "../private.txt" }
+  },
+  {
+    label: "Secret email",
+    toolName: "send_email",
+    purpose: "MCP Lab: demonstrate secret leakage blocking",
+    arguments: {
+      to: "security@agentguard.local",
+      subject: "Credential handoff",
+      body: "password=NeverUseThis123 and api_key=sk-test-1234567890abcdef should never leave the agent."
+    }
+  }
 ];
 
 type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
@@ -336,6 +390,11 @@ export function App() {
   const [userRole, setUserRole] = useState<"employee" | "reviewer" | "admin">("employee");
   const [userEmail, setUserEmail] = useState("employee@agentguard.local");
   const [activeSession, setActiveSession] = useState<AgentSession | null>(null);
+  const [labToolName, setLabToolName] = useState("read_document");
+  const [labPurpose, setLabPurpose] = useState(labExamples.read_document.purpose);
+  const [labArguments, setLabArguments] = useState(JSON.stringify(labExamples.read_document.arguments, null, 2));
+  const [labResult, setLabResult] = useState<McpLabResult | null>(null);
+  const [labError, setLabError] = useState<string | null>(null);
   const [auditQuery, setAuditQuery] = useState("");
   const [auditSort, setAuditSort] = useState<AuditSort>("newest");
   const [loading, setLoading] = useState(false);
@@ -451,6 +510,15 @@ export function App() {
   }, [activeSession, metrics.calls, pendingApprovals.length]);
   const selectedFlightSession = activeSession ?? sessions[0] ?? null;
   const selectedFlightCalls = selectedFlightSession?.toolCalls ?? toolCalls.slice(0, 8);
+  const selectedLabTool = useMemo(
+    () => tools.find((tool) => tool.name === labToolName) ?? null,
+    [labToolName, tools]
+  );
+  const labToolOptions = useMemo(() => {
+    const registeredNames = tools.map((tool) => tool.name);
+    const knownNames = Object.keys(labExamples);
+    return [...new Set([...registeredNames, ...knownNames])];
+  }, [tools]);
   const auditEventsByHash = useMemo(() => {
     return new Map(auditEvents.map((event) => [event.hash, event]));
   }, [auditEvents]);
@@ -501,6 +569,48 @@ export function App() {
     const next = await apiPatch<Tool>(`/api/tools/${tool.id}/status`, { status, actor: userEmail });
     setTools((current) => current.map((item) => (item.id === next.id ? next : item)));
     await loadAll();
+  }
+
+  function loadLabExample(toolName: string) {
+    const example = labExamples[toolName];
+    setLabToolName(toolName);
+    setLabPurpose(example?.purpose ?? `MCP Lab: run ${toolName} through the gateway`);
+    setLabArguments(JSON.stringify(example?.arguments ?? {}, null, 2));
+    setLabResult(null);
+    setLabError(null);
+  }
+
+  function loadBlockedLabExample(example: (typeof blockedLabExamples)[number]) {
+    setLabToolName(example.toolName);
+    setLabPurpose(example.purpose);
+    setLabArguments(JSON.stringify(example.arguments, null, 2));
+    setLabResult(null);
+    setLabError(null);
+  }
+
+  async function runLabTool() {
+    setLoading(true);
+    setLabError(null);
+    setToast("Running MCP Lab tool call");
+    try {
+      const parsedArguments = JSON.parse(labArguments) as Record<string, unknown>;
+      const result = await apiPost<McpLabResult>("/api/mcp-lab/run", {
+        toolName: labToolName,
+        purpose: labPurpose,
+        arguments: parsedArguments,
+        userEmail,
+        userRole
+      });
+      setLabResult(result);
+      await loadAll();
+      setToast(result.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "MCP Lab run failed";
+      setLabError(message);
+      setToast(message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function reviewApproval(approval: Approval, action: "approve" | "reject" | "redact-approve") {
@@ -634,6 +744,136 @@ export function App() {
                     <Workflow size={28} />
                     <strong>No workflow run yet</strong>
                     <span>Pick a scenario and run the agent to see policy checks, MCP calls, approvals, and audit events.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {view === "lab" && (
+          <section className="panel lab-panel">
+            <div className="section-title">
+              <div>
+                <h2>MCP Tool Playground</h2>
+                <p className="muted">Call the mock MCP tools directly, but only through AgentGuard's gateway checks.</p>
+              </div>
+              <button className="secondary-button" onClick={scanTools} disabled={loading}>
+                <RefreshCw size={18} />
+                Scan MCP Tools
+              </button>
+            </div>
+            <div className="lab-layout">
+              <div className="lab-builder">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 1</span>
+                    <h2>Choose a tool call</h2>
+                  </div>
+                  <Wrench size={22} />
+                </div>
+                <label htmlFor="lab-tool">MCP tool</label>
+                <select id="lab-tool" value={labToolName} onChange={(event) => loadLabExample(event.target.value)}>
+                  {labToolOptions.map((toolName) => (
+                    <option key={toolName} value={toolName}>
+                      {toolName}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="lab-purpose">Purpose</label>
+                <input
+                  id="lab-purpose"
+                  value={labPurpose}
+                  onChange={(event) => setLabPurpose(event.target.value)}
+                  placeholder="Why is this tool being called?"
+                />
+                <label htmlFor="lab-arguments">Tool arguments as JSON</label>
+                <textarea
+                  className="code-textarea"
+                  id="lab-arguments"
+                  value={labArguments}
+                  onChange={(event) => setLabArguments(event.target.value)}
+                />
+                <button className="primary-button" onClick={runLabTool} disabled={loading}>
+                  {loading ? <Sparkles size={18} /> : <Play size={18} />}
+                  {loading ? "Running through gateway" : "Run Through Gateway"}
+                </button>
+                <div className="lab-example-row">
+                  {blockedLabExamples.map((example) => (
+                    <button key={example.label} onClick={() => loadBlockedLabExample(example)}>
+                      {example.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="lab-inspector">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 2</span>
+                    <h2>Inspect what happened</h2>
+                  </div>
+                  <Shield size={22} />
+                </div>
+                <div className="lab-tool-card">
+                  <div className="audit-title-row">
+                    <div>
+                      <span className="session-time">
+                        <Database size={14} />
+                        {selectedLabTool ? "Registered MCP tool" : "Tool not registered yet"}
+                      </span>
+                      <strong>{labToolName}</strong>
+                    </div>
+                    <span className={selectedLabTool ? statusBadgeClass(selectedLabTool.status) : "badge badge-critical"}>
+                      {selectedLabTool ? humanizeLabel(selectedLabTool.status) : "Unknown"}
+                    </span>
+                  </div>
+                  <p>{selectedLabTool?.description ?? "Scan tools first, or run it to see the gateway block unknown tools."}</p>
+                  {selectedLabTool ? (
+                    <div className="call-badges">
+                      <span className={riskClass(selectedLabTool.riskLevel)}>
+                        {selectedLabTool.riskLevel} / {selectedLabTool.riskScore}
+                      </span>
+                      <span className="badge badge-low">Trust {selectedLabTool.trustScore}</span>
+                    </div>
+                  ) : null}
+                  <details className="developer-payload">
+                    <summary>
+                      <Code2 size={15} />
+                      Tool schema
+                    </summary>
+                    <JsonBlock value={selectedLabTool?.inputSchema ?? { message: "No schema loaded" }} />
+                  </details>
+                </div>
+                {labError ? (
+                  <p className="lab-error">{labError}</p>
+                ) : labResult ? (
+                  <div className="lab-result-stack">
+                    <ReadablePayload
+                      title="Gateway decision"
+                      rows={[
+                        { label: "Decision", value: humanizeLabel(labResult.decision) },
+                        { label: "Status", value: humanizeLabel(labResult.status) },
+                        { label: "Risk", value: `${labResult.riskLevel} / ${labResult.riskScore}` },
+                        { label: "Message", value: labResult.message }
+                      ]}
+                    />
+                    {labResult.approval ? (
+                      <ReadablePayload
+                        title="Approval created"
+                        rows={[
+                          { label: "Approval id", value: labResult.approval.id },
+                          { label: "Status", value: humanizeLabel(labResult.approval.status) },
+                          { label: "Reviewer action", value: "Open Approvals to approve, reject, or redact" }
+                        ]}
+                      />
+                    ) : null}
+                    {labResult.toolCall ? <Timeline calls={[labResult.toolCall]} /> : null}
+                  </div>
+                ) : (
+                  <div className="empty-state lab-empty">
+                    <Wrench size={28} />
+                    <strong>No MCP Lab run yet</strong>
+                    <span>Pick a tool, edit the JSON arguments, and run it through the same firewall used by the agent.</span>
                   </div>
                 )}
               </div>

@@ -17,6 +17,7 @@ Most beginner AI projects stop at "chat with your data." AgentGuard focuses on t
 - How to detect risky inputs such as PII, secrets, SQL mutation, and path traversal.
 - How to pause high-risk actions for human approval.
 - How to keep a flight recorder of agent sessions, tool calls, decisions, and audit events.
+- How to manually test real MCP tool calls in the MCP Lab without bypassing the gateway.
 
 ## Architecture
 
@@ -99,6 +100,14 @@ Run these from the Agent Console:
 - Send an API key by email -> blocked.
 - Use an unknown tool -> blocked.
 
+Use the MCP Lab to manually test the same tool boundary:
+
+- `read_document` with `public_report.txt` -> allowed.
+- `query_database` with `SELECT` -> logged.
+- `query_database` with `DROP TABLE Customer` -> blocked.
+- `send_email` with an internal recipient -> approval required.
+- `send_email` with a fake password/API key in the body -> blocked.
+
 ## Interview Pitch
 
 Short version:
@@ -126,12 +135,14 @@ Read the docs in this order:
 7. `docs/09-interview-prep.md` for answers you can say out loud.
 8. `docs/10-troubleshooting-journal.md` for real issues faced while building.
 9. `docs/11-end-to-end-workflow.md` for the complete workflow from prompt to audit log.
+10. `docs/12-mcp-lab.md` for the manual MCP tool playground workflow.
 
 ## Screenshots To Capture
 
 Run the app and capture these views for a resume/portfolio:
 
 - Agent Console after a safe ticket run.
+- MCP Lab after a blocked SQL or secret-email run.
 - Approvals after the internal complaint email scenario.
 - Tool Registry after a scan.
 - Flight Recorder after several sessions.

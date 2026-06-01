@@ -1,11 +1,11 @@
-import type { JsonRecord, PlannedToolCall, SessionRequest } from "@agentguard/shared";
+import type { JsonRecord, McpLabRequest, PlannedToolCall, SessionRequest } from "@agentguard/shared";
 import { evaluateToolCall, evaluateToolOutput, scanToolDescriptor } from "@agentguard/policy-engine";
 import { prisma } from "../prisma";
 import { stringifyJson } from "../json";
 import { recordAuditEvent } from "./audit";
 import { mcpClient } from "./mcpClient";
 import { planToolCalls } from "./planner";
-import { publicTool } from "./mapper";
+import { publicApproval, publicTool, publicToolCall } from "./mapper";
 
 export type RealtimeEmitter = (event: string, payload: unknown) => void;
 
@@ -286,6 +286,146 @@ export async function runAgentSession(input: SessionRequest) {
   };
 }
 
+export async function runMcpLabToolCall(input: McpLabRequest) {
+  const plannedCall: PlannedToolCall = {
+    toolName: input.toolName,
+    arguments: input.arguments,
+    purpose: input.purpose
+  };
+  const tool = await prisma.tool.findUnique({ where: { name: plannedCall.toolName } });
+  const precheck = evaluateToolCall({
+    toolName: plannedCall.toolName,
+    toolStatus: tool?.status as never,
+    baseRisk: tool?.baseRisk,
+    arguments: plannedCall.arguments
+  });
+
+  if (precheck.decision === "BLOCK") {
+    const call = await persistToolCall({
+      plannedCall,
+      decision: precheck.decision,
+      riskScore: precheck.riskScore,
+      riskLevel: precheck.riskLevel,
+      reasons: precheck.reasons,
+      status: "BLOCKED"
+    });
+
+    await recordAuditEvent({
+      eventType: "MCP_LAB_TOOL_BLOCKED",
+      entityType: "ToolCall",
+      entityId: call.id,
+      actor: input.userEmail,
+      data: {
+        source: "MCP Lab",
+        toolName: plannedCall.toolName,
+        decision: precheck.decision,
+        reasons: precheck.reasons
+      }
+    });
+
+    return {
+      message: "AgentGuard blocked this MCP tool call before execution.",
+      decision: precheck.decision,
+      riskScore: precheck.riskScore,
+      riskLevel: precheck.riskLevel,
+      reasons: precheck.reasons,
+      status: "BLOCKED",
+      redactedArguments: precheck.redactedArguments,
+      toolCall: publicToolCall(call)
+    };
+  }
+
+  if (precheck.decision === "REQUIRE_APPROVAL") {
+    const call = await persistToolCall({
+      plannedCall,
+      decision: precheck.decision,
+      riskScore: precheck.riskScore,
+      riskLevel: precheck.riskLevel,
+      reasons: precheck.reasons,
+      status: "PENDING_APPROVAL"
+    });
+
+    const approval = await prisma.approval.create({
+      data: {
+        toolCallId: call.id,
+        status: "PENDING",
+        requestedBy: input.userEmail,
+        rawArguments: stringifyJson(plannedCall.arguments),
+        redactedArgs: stringifyJson(precheck.redactedArguments ?? plannedCall.arguments)
+      },
+      include: { toolCall: true }
+    });
+
+    await recordAuditEvent({
+      eventType: "MCP_LAB_APPROVAL_REQUESTED",
+      entityType: "Approval",
+      entityId: approval.id,
+      actor: input.userEmail,
+      data: {
+        source: "MCP Lab",
+        toolName: plannedCall.toolName,
+        riskScore: precheck.riskScore,
+        reasons: precheck.reasons
+      }
+    });
+
+    emit("approval:requested", approval);
+
+    return {
+      message: "AgentGuard paused this MCP tool call for human approval.",
+      decision: precheck.decision,
+      riskScore: precheck.riskScore,
+      riskLevel: precheck.riskLevel,
+      reasons: precheck.reasons,
+      status: "PENDING_APPROVAL",
+      redactedArguments: precheck.redactedArguments,
+      toolCall: publicToolCall(call),
+      approval: publicApproval(approval)
+    };
+  }
+
+  const output = await executeAllowedTool(plannedCall.toolName, plannedCall.arguments);
+  const postcheck = evaluateToolOutput(plannedCall.toolName, output, precheck.riskScore);
+  const combinedReasons = [...precheck.reasons, ...postcheck.reasons];
+  const persistedOutput = postcheck.hardBlock ? { blockedOutput: true, preview: "[blocked by post-check]" } : output;
+  const call = await persistToolCall({
+    plannedCall,
+    decision: postcheck.hardBlock ? "BLOCK" : precheck.decision,
+    riskScore: postcheck.riskScore,
+    riskLevel: postcheck.riskLevel,
+    reasons: combinedReasons,
+    status: postcheck.hardBlock ? "BLOCKED_OUTPUT" : "EXECUTED",
+    output: persistedOutput
+  });
+
+  await recordAuditEvent({
+    eventType: postcheck.hardBlock ? "MCP_LAB_OUTPUT_BLOCKED" : "MCP_LAB_TOOL_EXECUTED",
+    entityType: "ToolCall",
+    entityId: call.id,
+    actor: input.userEmail,
+    data: {
+      source: "MCP Lab",
+      toolName: plannedCall.toolName,
+      decision: postcheck.hardBlock ? "BLOCK" : precheck.decision,
+      riskScore: postcheck.riskScore,
+      reasons: combinedReasons
+    }
+  });
+
+  return {
+    message: postcheck.hardBlock
+      ? "AgentGuard blocked the MCP tool output during post-check."
+      : "MCP tool executed through AgentGuard.",
+    decision: postcheck.hardBlock ? "BLOCK" : precheck.decision,
+    riskScore: postcheck.riskScore,
+    riskLevel: postcheck.riskLevel,
+    reasons: combinedReasons,
+    status: postcheck.hardBlock ? "BLOCKED_OUTPUT" : "EXECUTED",
+    output: persistedOutput,
+    toolCall: publicToolCall(call)
+  };
+}
+
 export async function approveToolCall(approvalId: string, actor: string, redactedArguments?: JsonRecord) {
   const approval = await prisma.approval.findUnique({
     where: { id: approvalId },
@@ -410,4 +550,3 @@ export async function rejectToolCall(approvalId: string, actor: string) {
   emit("approval:reviewed", updatedApproval);
   return updatedApproval;
 }
-

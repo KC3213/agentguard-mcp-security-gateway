@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import {
   approvalActionSchema,
+  mcpLabRequestSchema,
   redactedApprovalSchema,
   sessionRequestSchema,
   updateToolStatusSchema
@@ -9,7 +10,7 @@ import {
 import { prisma } from "./prisma";
 import { parseJson, stringifyJson } from "./json";
 import { recordAuditEvent, verifyAuditChain } from "./services/audit";
-import { approveToolCall, rejectToolCall, runAgentSession, scanAndPersistTools } from "./services/gateway";
+import { approveToolCall, rejectToolCall, runAgentSession, runMcpLabToolCall, scanAndPersistTools } from "./services/gateway";
 import { publicApproval, publicSession, publicTool, publicToolCall } from "./services/mapper";
 
 export function createApp() {
@@ -112,6 +113,16 @@ export function createApp() {
     }
   });
 
+  app.post("/api/mcp-lab/run", async (req, res, next) => {
+    try {
+      const input = mcpLabRequestSchema.parse(req.body);
+      const result = await runMcpLabToolCall(input);
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/approvals", async (_req, res, next) => {
     try {
       const approvals = await prisma.approval.findMany({
@@ -197,4 +208,3 @@ export function createApp() {
 
   return app;
 }
-
