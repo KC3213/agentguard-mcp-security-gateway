@@ -14,6 +14,7 @@ import {
   History,
   Play,
   RefreshCw,
+  Search,
   Shield,
   SlidersHorizontal,
   Sparkles,
@@ -50,6 +51,7 @@ const demoPrompts = [
 
 type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
 type DetailRow = { label: string; value: string };
+type AuditSort = "newest" | "oldest" | "event-type" | "actor" | "hash";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
@@ -280,6 +282,47 @@ function auditEventSummaryRows(data: unknown): DetailRow[] {
   return detailRowsFromRecord(data);
 }
 
+function auditEventSearchText(event: AuditEvent) {
+  return [
+    event.hash,
+    event.prevHash ?? "Genesis event",
+    event.eventType,
+    event.entityType,
+    event.entityId ?? "",
+    event.actor ?? "system",
+    JSON.stringify(event.data ?? "")
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function getAuditMatchLabel(event: AuditEvent, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return null;
+  if (event.hash.toLowerCase().includes(normalized)) return "Current hash match";
+  if ((event.prevHash ?? "Genesis event").toLowerCase().includes(normalized)) return "Previous hash match";
+  if ((event.entityId ?? "").toLowerCase().includes(normalized)) return "Entity match";
+  return "Event payload match";
+}
+
+function sortAuditEvents(events: AuditEvent[], sort: AuditSort) {
+  return [...events].sort((left, right) => {
+    if (sort === "oldest") {
+      return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+    }
+    if (sort === "event-type") {
+      return left.eventType.localeCompare(right.eventType);
+    }
+    if (sort === "actor") {
+      return (left.actor ?? "system").localeCompare(right.actor ?? "system");
+    }
+    if (sort === "hash") {
+      return left.hash.localeCompare(right.hash);
+    }
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  });
+}
+
 export function App() {
   const [view, setView] = useState<View>("console");
   const [tools, setTools] = useState<Tool[]>([]);
@@ -293,6 +336,8 @@ export function App() {
   const [userRole, setUserRole] = useState<"employee" | "reviewer" | "admin">("employee");
   const [userEmail, setUserEmail] = useState("employee@agentguard.local");
   const [activeSession, setActiveSession] = useState<AgentSession | null>(null);
+  const [auditQuery, setAuditQuery] = useState("");
+  const [auditSort, setAuditSort] = useState<AuditSort>("newest");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("Ready");
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -406,6 +451,17 @@ export function App() {
   }, [activeSession, metrics.calls, pendingApprovals.length]);
   const selectedFlightSession = activeSession ?? sessions[0] ?? null;
   const selectedFlightCalls = selectedFlightSession?.toolCalls ?? toolCalls.slice(0, 8);
+  const auditEventsByHash = useMemo(() => {
+    return new Map(auditEvents.map((event) => [event.hash, event]));
+  }, [auditEvents]);
+  const visibleAuditEvents = useMemo(() => {
+    const normalizedQuery = auditQuery.trim().toLowerCase();
+    const filteredEvents = normalizedQuery
+      ? auditEvents.filter((event) => auditEventSearchText(event).includes(normalizedQuery))
+      : auditEvents;
+
+    return sortAuditEvents(filteredEvents, auditSort);
+  }, [auditEvents, auditQuery, auditSort]);
 
   async function runSession() {
     setLoading(true);
@@ -754,10 +810,54 @@ export function App() {
               </div>
               <span className="count-pill">{auditEvents.length}</span>
             </div>
+            <div className="audit-toolbar">
+              <label className="audit-search">
+                <span>Search audit trail</span>
+                <div className="input-with-icon">
+                  <Search size={17} />
+                  <input
+                    aria-label="Audit search"
+                    value={auditQuery}
+                    onChange={(event) => setAuditQuery(event.target.value)}
+                    placeholder="Paste current hash, previous hash, actor, event id..."
+                  />
+                </div>
+              </label>
+              <label className="audit-sort">
+                <span>Sort</span>
+                <select
+                  aria-label="Audit sort"
+                  value={auditSort}
+                  onChange={(event) => setAuditSort(event.target.value as AuditSort)}
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="event-type">Event type</option>
+                  <option value="actor">Actor</option>
+                  <option value="hash">Current hash</option>
+                </select>
+              </label>
+              <div className="audit-result-card">
+                <strong>{visibleAuditEvents.length}</strong>
+                <span>{auditQuery.trim() ? "matching events" : "events shown"}</span>
+              </div>
+            </div>
             <div className="audit-list">
-              {auditEvents.map((event) => (
-                <AuditEventCard event={event} key={event.id} />
+              {visibleAuditEvents.map((event) => (
+                <AuditEventCard
+                  event={event}
+                  hashQuery={auditQuery}
+                  key={event.id}
+                  previousEvent={event.prevHash ? auditEventsByHash.get(event.prevHash) ?? null : null}
+                />
               ))}
+              {!visibleAuditEvents.length ? (
+                <div className="empty-state audit-empty">
+                  <Hash size={28} />
+                  <strong>No audit events found</strong>
+                  <span>Try a different hash fragment, actor, event name, or entity id.</span>
+                </div>
+              ) : null}
             </div>
           </section>
         )}
@@ -856,8 +956,17 @@ function ReadablePayload({ title, rows }: { title: string; rows: DetailRow[] }) 
   );
 }
 
-function AuditEventCard({ event }: { event: AuditEvent }) {
+function AuditEventCard({
+  event,
+  hashQuery,
+  previousEvent
+}: {
+  event: AuditEvent;
+  hashQuery: string;
+  previousEvent: AuditEvent | null;
+}) {
   const rows = auditEventSummaryRows(event.data);
+  const matchLabel = getAuditMatchLabel(event, hashQuery);
 
   return (
     <article className="audit-card">
@@ -871,9 +980,12 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
             </span>
             <strong>{humanizeLabel(event.eventType)}</strong>
           </div>
-          <span className={event.valid ? "badge badge-low" : "badge badge-critical"}>
-            {event.valid ? "Hash chain valid" : "Hash mismatch"}
-          </span>
+          <div className="event-badge-group">
+            {matchLabel ? <span className="badge badge-medium">{matchLabel}</span> : null}
+            <span className={event.valid ? "badge badge-low" : "badge badge-critical"}>
+              {event.valid ? "Hash chain valid" : "Hash mismatch"}
+            </span>
+          </div>
         </div>
         <div className="audit-meta">
           <span>
@@ -900,6 +1012,13 @@ function AuditEventCard({ event }: { event: AuditEvent }) {
             <div>
               <span>Previous hash</span>
               <code>{event.prevHash ?? "Genesis event"}</code>
+              <small>
+                {previousEvent
+                  ? `Points to ${humanizeLabel(previousEvent.eventType)} from ${formatDateTime(previousEvent.createdAt)}`
+                  : event.prevHash
+                    ? "No matching previous event loaded"
+                    : "Start of this audit chain"}
+              </small>
             </div>
             <div>
               <span>Current hash</span>

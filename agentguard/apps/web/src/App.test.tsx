@@ -37,6 +37,25 @@ const demoSession = {
   ]
 };
 
+const previousAuditHash = "111aaa832b4afa91f265e570f5a18310e486bd89e172d4c3fa56ff5d828222";
+
+const previousAuditEvent = {
+  id: "audit-0",
+  eventType: "TOOL_CALL_EXECUTED",
+  entityType: "ToolCall",
+  entityId: "call-1",
+  actor: "employee@agentguard.local",
+  data: {
+    toolName: "read_document",
+    decision: "ALLOW",
+    riskScore: 25
+  },
+  prevHash: null,
+  hash: previousAuditHash,
+  valid: true,
+  createdAt: "2026-06-01T09:08:01.530Z"
+};
+
 const demoAuditEvent = {
   id: "audit-1",
   eventType: "SESSION_STARTED",
@@ -47,7 +66,7 @@ const demoAuditEvent = {
     prompt: "Read the public quarterly support report",
     plannedCalls: [{ toolName: "read_document", purpose: "Read synthetic public report", arguments: { path: "public_report.txt" } }]
   },
-  prevHash: null,
+  prevHash: previousAuditHash,
   hash: "c392a1832b4afa91f265e570f5a18310e486bd89e172d4c3fa56ff5d82828980",
   valid: true,
   createdAt: "2026-06-01T09:09:01.530Z"
@@ -61,7 +80,7 @@ const emptyResponse = (path: string) => {
 const readableResponse = (path: string) => {
   if (path.endsWith("/api/sessions")) return [demoSession];
   if (path.endsWith("/api/tool-calls")) return demoSession.toolCalls;
-  if (path.endsWith("/api/audit")) return [demoAuditEvent];
+  if (path.endsWith("/api/audit")) return [demoAuditEvent, previousAuditEvent];
   if (path.endsWith("/api/metrics")) return { sessions: 1, calls: 1, pendingApprovals: 0, blocked: 0 };
   return [];
 };
@@ -114,7 +133,16 @@ describe("App", () => {
 
     expect(await screen.findByText("Tamper-Evident Audit Trail")).toBeInTheDocument();
     expect(screen.getByText("Session Started")).toBeInTheDocument();
-    expect(screen.getByText("Hash chain valid")).toBeInTheDocument();
-    expect(screen.getByText("Raw audit payload and hashes")).toBeInTheDocument();
+    expect(screen.getAllByText("Hash chain valid")).toHaveLength(2);
+    expect(screen.getAllByText("Raw audit payload and hashes")).toHaveLength(2);
+
+    fireEvent.change(screen.getByLabelText("Audit search"), { target: { value: "c392a1832" } });
+
+    expect(screen.getByText("Current hash match")).toBeInTheDocument();
+    expect(screen.getByText("matching events")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Audit sort"), { target: { value: "oldest" } });
+
+    expect(screen.getByDisplayValue("Oldest first")).toBeInTheDocument();
   });
 });

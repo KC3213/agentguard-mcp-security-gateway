@@ -35,7 +35,8 @@ body {
 
 button,
 select,
-textarea {
+textarea,
+input {
   font: inherit;
 }
 
@@ -45,7 +46,8 @@ button {
 
 button,
 select,
-textarea {
+textarea,
+input {
   transition:
     border-color 160ms ease,
     background 160ms ease,
@@ -220,7 +222,8 @@ textarea {
 }
 
 select,
-textarea {
+textarea,
+input {
   border: 1px solid rgba(148, 163, 184, 0.26);
   border-radius: 8px;
   background: #111827;
@@ -240,7 +243,8 @@ textarea {
 }
 
 textarea:focus,
-select:focus {
+select:focus,
+input:focus {
   outline: none;
   border-color: #facc15;
   box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.1);
@@ -952,6 +956,72 @@ td span {
   gap: 12px;
 }
 
+.audit-toolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 220px 150px;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.audit-search,
+.audit-sort {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.audit-search > span,
+.audit-sort > span {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.input-with-icon {
+  position: relative;
+  min-width: 0;
+}
+
+.input-with-icon svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  color: #facc15;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.input-with-icon input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px 10px 40px;
+}
+
+.audit-result-card {
+  display: grid;
+  align-content: center;
+  min-height: 42px;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  border-radius: 8px;
+  padding: 8px 11px;
+  background: #1d1a0d;
+}
+
+.audit-result-card strong {
+  color: #facc15;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.audit-result-card span {
+  margin-top: 3px;
+  color: #fef3c7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .audit-card {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
@@ -992,6 +1062,13 @@ td span {
   display: block;
   color: #f8fafc;
   font-size: 17px;
+}
+
+.event-badge-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
 }
 
 .audit-meta {
@@ -1037,6 +1114,17 @@ td span {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.hash-grid small {
+  display: block;
+  margin-top: 7px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.audit-empty {
+  min-height: 220px;
 }
 
 .empty-state {
@@ -1126,6 +1214,7 @@ button:disabled {
   }
 
   .timeline-json,
+  .audit-toolbar,
   .call-summary-grid,
   .summary-grid,
   .scenario-grid {
