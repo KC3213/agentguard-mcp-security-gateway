@@ -2,16 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
+  Bot,
   CheckCircle2,
+  Clock,
+  Code2,
   ClipboardCheck,
   Database,
   FileSearch,
+  Hash,
   History,
   Play,
   RefreshCw,
+  Search,
   Shield,
   SlidersHorizontal,
+  Sparkles,
   TerminalSquare,
+  UserRound,
+  Workflow,
   XCircle
 } from "lucide-react";
 import { io } from "socket.io-client";
@@ -39,6 +48,15 @@ const demoPrompts = [
   "Send an API key by email",
   "Use an unknown tool"
 ];
+
+type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
+type DetailRow = { label: string; value: string };
+type AuditSort = "newest" | "oldest" | "event-type" | "actor" | "hash";
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short"
+});
 
 function riskClass(level: string) {
   if (level === "CRITICAL") return "badge badge-critical";
@@ -69,6 +87,242 @@ function MetricCard({ label, value, icon: Icon }: { label: string; value: number
   );
 }
 
+function workflowClass(state: WorkflowState) {
+  return `workflow-step workflow-${state}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function humanizeLabel(value: string | null | undefined) {
+  if (!value) return "Not recorded";
+  return value
+    .replace(/[._-]+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Time not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Invalid time";
+  return dateTimeFormatter.format(date);
+}
+
+function previewText(value: unknown, maxLength = 180) {
+  const text =
+    typeof value === "string"
+      ? value
+      : value === null || value === undefined
+        ? ""
+        : JSON.stringify(value);
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Not provided";
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3)}...` : normalized;
+}
+
+function summarizeValue(value: unknown, maxLength = 160): string {
+  if (value === null || value === undefined || value === "") return "Not provided";
+  if (typeof value === "string") return previewText(value, maxLength);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    if (!value.length) return "No items";
+    return `${value.length} item${value.length === 1 ? "" : "s"}: ${previewText(
+      value.map((item) => summarizeValue(item, 60)).join(", "),
+      maxLength
+    )}`;
+  }
+  if (isRecord(value)) {
+    return previewText(
+      Object.entries(value)
+        .slice(0, 4)
+        .map(([key, entryValue]) => `${humanizeLabel(key)}: ${summarizeValue(entryValue, 50)}`)
+        .join("; "),
+      maxLength
+    );
+  }
+  return previewText(String(value), maxLength);
+}
+
+function detailRowsFromRecord(record: Record<string, unknown>): DetailRow[] {
+  const rows = Object.entries(record).map(([key, value]) => ({
+    label: humanizeLabel(key),
+    value: summarizeValue(value)
+  }));
+  return rows.length ? rows : [{ label: "Payload", value: "No fields recorded" }];
+}
+
+function formatToolArguments(call: ToolCall): DetailRow[] {
+  const args = call.arguments ?? {};
+
+  if (call.toolName === "send_email") {
+    return [
+      { label: "Recipient", value: summarizeValue(args.to) },
+      { label: "Subject", value: summarizeValue(args.subject) },
+      { label: "Body preview", value: summarizeValue(args.body, 220) }
+    ];
+  }
+
+  if (call.toolName === "query_database") {
+    return [{ label: "SQL query", value: summarizeValue(args.sql, 260) }];
+  }
+
+  if (call.toolName === "read_document") {
+    return [{ label: "Document path", value: summarizeValue(args.path) }];
+  }
+
+  if (call.toolName === "create_ticket") {
+    return [
+      { label: "Title", value: summarizeValue(args.title) },
+      { label: "Priority", value: summarizeValue(args.priority) },
+      { label: "Description", value: summarizeValue(args.description, 220) }
+    ];
+  }
+
+  return detailRowsFromRecord(args);
+}
+
+function formatToolOutput(call: ToolCall): DetailRow[] {
+  if (!call.output) {
+    const reason = call.status.includes("BLOCK")
+      ? "Blocked before the MCP tool executed"
+      : "No output returned yet";
+    return [{ label: "Result", value: reason }];
+  }
+
+  if (!isRecord(call.output)) {
+    return [{ label: "Result", value: summarizeValue(call.output, 220) }];
+  }
+
+  if (call.toolName === "send_email") {
+    return [
+      { label: "Mock email status", value: summarizeValue(call.output.status) },
+      { label: "Record id", value: summarizeValue(call.output.id) },
+      { label: "Safety note", value: summarizeValue(call.output.note, 220) }
+    ];
+  }
+
+  if (call.toolName === "query_database" && Array.isArray(call.output.rows)) {
+    const rows = call.output.rows;
+    const firstRow = rows.find((row) => isRecord(row));
+    return [
+      { label: "Rows returned", value: String(rows.length) },
+      {
+        label: "Columns",
+        value: firstRow && isRecord(firstRow) ? Object.keys(firstRow).join(", ") : "No columns"
+      },
+      { label: "First row preview", value: firstRow ? summarizeValue(firstRow, 220) : "No rows returned" }
+    ];
+  }
+
+  if (call.toolName === "read_document") {
+    return [
+      { label: "Document", value: summarizeValue(call.output.path) },
+      { label: "Text preview", value: summarizeValue(call.output.text, 260) }
+    ];
+  }
+
+  if (call.toolName === "create_ticket") {
+    return [
+      { label: "Ticket id", value: summarizeValue(call.output.id) },
+      { label: "Status", value: summarizeValue(call.output.status) },
+      { label: "Priority", value: summarizeValue(call.output.priority) }
+    ];
+  }
+
+  return detailRowsFromRecord(call.output);
+}
+
+function statusBadgeClass(status: string) {
+  const normalized = status.toUpperCase();
+  if (normalized.includes("BLOCK") || normalized.includes("REJECT")) return "badge badge-critical";
+  if (normalized.includes("APPROVAL") || normalized.includes("PENDING") || normalized.includes("WAIT")) {
+    return "badge badge-high";
+  }
+  if (normalized.includes("LOG") || normalized.includes("MEDIUM")) return "badge badge-medium";
+  return "badge badge-low";
+}
+
+function shortHash(hash: string | null | undefined) {
+  return hash ? `${hash.slice(0, 10)}...${hash.slice(-6)}` : "Genesis event";
+}
+
+function auditEventSummaryRows(data: unknown): DetailRow[] {
+  if (!isRecord(data)) return [{ label: "Summary", value: summarizeValue(data, 220) }];
+
+  const rows: DetailRow[] = [];
+
+  if (typeof data.prompt === "string") {
+    rows.push({ label: "Prompt", value: summarizeValue(data.prompt, 220) });
+  }
+
+  if (Array.isArray(data.plannedCalls)) {
+    const planned = data.plannedCalls.map((call) =>
+      isRecord(call)
+        ? `${summarizeValue(call.toolName, 40)} (${summarizeValue(call.purpose, 80)})`
+        : summarizeValue(call, 80)
+    );
+    rows.push({ label: "Planned tools", value: planned.join(" -> ") || "No planned tool calls" });
+  }
+
+  if (data.toolName) rows.push({ label: "Tool", value: summarizeValue(data.toolName) });
+  if (data.name) rows.push({ label: "Name", value: summarizeValue(data.name) });
+  if (data.status) rows.push({ label: "Status", value: summarizeValue(data.status) });
+  if (data.decision) rows.push({ label: "Decision", value: summarizeValue(data.decision) });
+  if (data.postDecision) rows.push({ label: "Post-check decision", value: summarizeValue(data.postDecision) });
+  if (data.riskScore !== undefined) rows.push({ label: "Risk score", value: summarizeValue(data.riskScore) });
+  if (Array.isArray(data.reasons)) rows.push({ label: "Policy reasons", value: data.reasons.join("; ") });
+  if (data.finalAnswer) rows.push({ label: "Gateway result", value: summarizeValue(data.finalAnswer, 260) });
+  if (data.count !== undefined) rows.push({ label: "Discovered count", value: summarizeValue(data.count) });
+  if (Array.isArray(data.tools)) rows.push({ label: "Tools", value: data.tools.map((tool) => summarizeValue(tool)).join(", ") });
+
+  if (rows.length) return rows;
+  return detailRowsFromRecord(data);
+}
+
+function auditEventSearchText(event: AuditEvent) {
+  return [
+    event.hash,
+    event.prevHash ?? "Genesis event",
+    event.eventType,
+    event.entityType,
+    event.entityId ?? "",
+    event.actor ?? "system",
+    JSON.stringify(event.data ?? "")
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function getAuditMatchLabel(event: AuditEvent, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return null;
+  if (event.hash.toLowerCase().includes(normalized)) return "Current hash match";
+  if ((event.prevHash ?? "Genesis event").toLowerCase().includes(normalized)) return "Previous hash match";
+  if ((event.entityId ?? "").toLowerCase().includes(normalized)) return "Entity match";
+  return "Event payload match";
+}
+
+function sortAuditEvents(events: AuditEvent[], sort: AuditSort) {
+  return [...events].sort((left, right) => {
+    if (sort === "oldest") {
+      return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+    }
+    if (sort === "event-type") {
+      return left.eventType.localeCompare(right.eventType);
+    }
+    if (sort === "actor") {
+      return (left.actor ?? "system").localeCompare(right.actor ?? "system");
+    }
+    if (sort === "hash") {
+      return left.hash.localeCompare(right.hash);
+    }
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  });
+}
+
 export function App() {
   const [view, setView] = useState<View>("console");
   const [tools, setTools] = useState<Tool[]>([]);
@@ -82,6 +336,8 @@ export function App() {
   const [userRole, setUserRole] = useState<"employee" | "reviewer" | "admin">("employee");
   const [userEmail, setUserEmail] = useState("employee@agentguard.local");
   const [activeSession, setActiveSession] = useState<AgentSession | null>(null);
+  const [auditQuery, setAuditQuery] = useState("");
+  const [auditSort, setAuditSort] = useState<AuditSort>("newest");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("Ready");
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,6 +403,65 @@ export function App() {
     () => approvals.filter((approval) => approval.status === "PENDING"),
     [approvals]
   );
+  const workflowStages = useMemo(() => {
+    const calls = activeSession?.toolCalls ?? [];
+    const hasSession = Boolean(activeSession);
+    const hasBlocked = activeSession?.status === "BLOCKED" || calls.some((call) => call.status.includes("BLOCK"));
+    const isWaiting = activeSession?.status === "WAITING_FOR_APPROVAL";
+    const hasExecuted = calls.some((call) => call.status.includes("EXECUTED"));
+
+    return [
+      {
+        label: "Prompt",
+        detail: hasSession ? "Request captured" : "Write or choose a task",
+        view: "console" as View,
+        state: hasSession ? "done" : "active"
+      },
+      {
+        label: "Plan",
+        detail: hasSession ? `${activeSession?.planned.length ?? 0} tool call(s)` : "Planner is ready",
+        view: "console" as View,
+        state: hasSession ? "done" : "idle"
+      },
+      {
+        label: "Policy",
+        detail: hasBlocked ? "Unsafe action caught" : hasSession ? "Risk checks applied" : "Waiting for a run",
+        view: "tools" as View,
+        state: hasBlocked ? "blocked" : hasSession ? "done" : "idle"
+      },
+      {
+        label: "Action",
+        detail: hasExecuted ? "MCP tool executed" : isWaiting ? "Paused safely" : "No tool output yet",
+        view: "flight" as View,
+        state: hasExecuted ? "done" : isWaiting ? "waiting" : "idle"
+      },
+      {
+        label: "Review",
+        detail: pendingApprovals.length ? `${pendingApprovals.length} pending` : "No pending review",
+        view: "approvals" as View,
+        state: pendingApprovals.length ? "waiting" : hasSession ? "done" : "idle"
+      },
+      {
+        label: "Audit",
+        detail: metrics.calls ? "Recorded in timeline" : "Audit trail ready",
+        view: "audit" as View,
+        state: metrics.calls ? "done" : "idle"
+      }
+    ] satisfies Array<{ label: string; detail: string; view: View; state: WorkflowState }>;
+  }, [activeSession, metrics.calls, pendingApprovals.length]);
+  const selectedFlightSession = activeSession ?? sessions[0] ?? null;
+  const selectedFlightCalls = selectedFlightSession?.toolCalls ?? toolCalls.slice(0, 8);
+  const auditEventsByHash = useMemo(() => {
+    return new Map(auditEvents.map((event) => [event.hash, event]));
+  }, [auditEvents]);
+  const visibleAuditEvents = useMemo(() => {
+    const normalizedQuery = auditQuery.trim().toLowerCase();
+    const filteredEvents = normalizedQuery
+      ? auditEvents.filter((event) => auditEventSearchText(event).includes(normalizedQuery))
+      : auditEvents;
+
+    return sortAuditEvents(filteredEvents, auditSort);
+  }, [auditEvents, auditQuery, auditSort]);
 
   async function runSession() {
     setLoading(true);
@@ -202,10 +517,19 @@ export function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <Shield size={28} />
+          <div className="brand-mark">
+            <Shield size={24} />
+          </div>
           <div>
             <strong>AgentGuard</strong>
             <span>MCP security gateway</span>
+          </div>
+        </div>
+        <div className="sidebar-status">
+          <span className="status-dot" />
+          <div>
+            <strong>Runtime online</strong>
+            <span>Gateway enforcing policy</span>
           </div>
         </div>
         <nav>
@@ -224,6 +548,7 @@ export function App() {
       <main className="main">
         <header className="topbar">
           <div>
+            <p className="eyebrow">Agent workflow control plane</p>
             <h1>{navItems.find((item) => item.id === view)?.label}</h1>
             <p>{toast}</p>
           </div>
@@ -239,40 +564,77 @@ export function App() {
           </div>
         </header>
 
-        <section className="metrics-grid">
-          <MetricCard label="Sessions" value={metrics.sessions} icon={Activity} />
-          <MetricCard label="Tool Calls" value={metrics.calls} icon={Database} />
-          <MetricCard label="Pending" value={metrics.pendingApprovals} icon={ClipboardCheck} />
-          <MetricCard label="Blocked" value={metrics.blocked} icon={AlertTriangle} />
-        </section>
+        {view === "audit" ? (
+          <section className="metrics-grid audit-metrics-grid" aria-label="Audit overview">
+            <MetricCard label="Audit Events" value={auditEvents.length} icon={FileSearch} />
+            <MetricCard label="Visible Results" value={visibleAuditEvents.length} icon={Search} />
+            <MetricCard label="Valid Chain" value={auditEvents.filter((event) => event.valid).length} icon={CheckCircle2} />
+            <MetricCard label="Hash Issues" value={auditEvents.filter((event) => !event.valid).length} icon={AlertTriangle} />
+          </section>
+        ) : null}
 
         {view === "console" && (
-          <section className="panel">
+          <section className="panel console-panel">
+            <section className="workflow-rail console-workflow-rail" aria-label="AgentGuard workflow">
+              <div className="workflow-title">
+                <Workflow size={18} />
+                <span>Console workflow</span>
+              </div>
+              <div className="workflow-steps">
+                {workflowStages.map((stage, index) => (
+                  <button key={stage.label} className={workflowClass(stage.state)} onClick={() => setView(stage.view)}>
+                    <span className="workflow-index">{index + 1}</span>
+                    <span>
+                      <strong>{stage.label}</strong>
+                      <small>{stage.detail}</small>
+                    </span>
+                    {index < workflowStages.length - 1 ? <ArrowRight size={15} className="workflow-arrow" /> : null}
+                  </button>
+                ))}
+              </div>
+            </section>
             <div className="console-layout">
               <div className="console-input">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 1</span>
+                    <h2>Choose an agent task</h2>
+                  </div>
+                  <Bot size={22} />
+                </div>
                 <label htmlFor="prompt">Prompt</label>
                 <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
                 <div className="scenario-grid">
                   {demoPrompts.map((item) => (
-                    <button key={item} onClick={() => setPrompt(item)}>
+                    <button key={item} className={prompt === item ? "scenario-active" : ""} onClick={() => setPrompt(item)}>
                       {item}
                     </button>
                   ))}
                 </div>
                 <button className="primary-button" onClick={runSession} disabled={loading}>
-                  <Play size={18} />
-                  Run Agent
+                  {loading ? <Sparkles size={18} /> : <Play size={18} />}
+                  {loading ? "Running workflow" : "Run Agent"}
                 </button>
               </div>
               <div className="console-output">
-                <h2>Latest Session</h2>
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 2</span>
+                    <h2>Inspect gateway decision</h2>
+                  </div>
+                  <Shield size={22} />
+                </div>
                 {activeSession ? (
                   <>
                     <p className="answer">{activeSession.finalAnswer}</p>
                     <Timeline calls={activeSession.toolCalls ?? []} />
                   </>
                 ) : (
-                  <p className="muted">No session selected.</p>
+                  <div className="empty-state">
+                    <Workflow size={28} />
+                    <strong>No workflow run yet</strong>
+                    <span>Pick a scenario and run the agent to see policy checks, MCP calls, approvals, and audit events.</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -365,17 +727,76 @@ export function App() {
         {view === "flight" && (
           <section className="panel">
             <div className="flight-layout">
-              <div className="session-list">
-                {sessions.map((session) => (
-                  <button key={session.id} onClick={() => setActiveSession(session)}>
-                    <strong>{session.status}</strong>
-                    <span>{session.prompt}</span>
-                  </button>
-                ))}
+              <div className="session-column">
+                <div className="section-title compact-title">
+                  <h2>Recorded Sessions</h2>
+                  <span className="count-pill">{sessions.length}</span>
+                </div>
+                <div className="session-list">
+                  {sessions.map((session) => (
+                    <button
+                      key={session.id}
+                      className={selectedFlightSession?.id === session.id ? "session-active" : ""}
+                      onClick={() => setActiveSession(session)}
+                    >
+                      <span className="session-time">
+                        <Clock size={14} />
+                        {formatDateTime(session.createdAt)}
+                      </span>
+                      <strong>{humanizeLabel(session.status)}</strong>
+                      <span>{previewText(session.prompt, 96)}</span>
+                      <small>
+                        {session.planned.length} planned / {session.toolCalls?.length ?? 0} recorded
+                      </small>
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="timeline-panel">
-                <h2>Tool Timeline</h2>
-                <Timeline calls={activeSession?.toolCalls ?? toolCalls.slice(0, 8)} />
+                {selectedFlightSession ? (
+                  <div className="session-summary">
+                    <div>
+                      <span className="session-time">
+                        <Clock size={14} />
+                        {formatDateTime(selectedFlightSession.createdAt)}
+                      </span>
+                      <h2>{humanizeLabel(selectedFlightSession.status)} Session</h2>
+                      <p>{selectedFlightSession.prompt}</p>
+                    </div>
+                    <div className="summary-grid">
+                      <div className="summary-item">
+                        <span>Actor</span>
+                        <strong>{selectedFlightSession.userEmail}</strong>
+                      </div>
+                      <div className="summary-item">
+                        <span>Role</span>
+                        <strong>{humanizeLabel(selectedFlightSession.userRole)}</strong>
+                      </div>
+                      <div className="summary-item">
+                        <span>Planned calls</span>
+                        <strong>{selectedFlightSession.planned.length}</strong>
+                      </div>
+                      <div className="summary-item">
+                        <span>Recorded calls</span>
+                        <strong>{selectedFlightSession.toolCalls?.length ?? 0}</strong>
+                      </div>
+                    </div>
+                    {selectedFlightSession.finalAnswer ? (
+                      <p className="answer compact-answer">{selectedFlightSession.finalAnswer}</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <History size={28} />
+                    <strong>No sessions yet</strong>
+                    <span>Run the agent once to create a readable execution timeline.</span>
+                  </div>
+                )}
+                <div className="section-title compact-title">
+                  <h2>Tool Timeline</h2>
+                  <span className="muted">{selectedFlightCalls.length} event(s)</span>
+                </div>
+                <Timeline calls={selectedFlightCalls} />
               </div>
             </div>
           </section>
@@ -383,38 +804,61 @@ export function App() {
 
         {view === "audit" && (
           <section className="panel">
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Event</th>
-                    <th>Actor</th>
-                    <th>Hash</th>
-                    <th>Chain</th>
-                    <th>Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditEvents.map((event) => (
-                    <tr key={event.id}>
-                      <td>
-                        <strong>{event.eventType}</strong>
-                        <span>{event.entityType}</span>
-                      </td>
-                      <td>{event.actor ?? "system"}</td>
-                      <td className="mono">{event.hash.slice(0, 14)}...</td>
-                      <td>
-                        <span className={event.valid ? "badge badge-low" : "badge badge-critical"}>
-                          {event.valid ? "valid" : "check"}
-                        </span>
-                      </td>
-                      <td>
-                        <JsonBlock value={event.data} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="section-title">
+              <div>
+                <h2>Tamper-Evident Audit Trail</h2>
+                <p className="muted">Readable event history with the raw payload available when you need it.</p>
+              </div>
+              <span className="count-pill">{auditEvents.length}</span>
+            </div>
+            <div className="audit-toolbar">
+              <label className="audit-search">
+                <span>Search audit trail</span>
+                <div className="input-with-icon">
+                  <Search size={17} />
+                  <input
+                    aria-label="Audit search"
+                    value={auditQuery}
+                    onChange={(event) => setAuditQuery(event.target.value)}
+                    placeholder="Paste current hash, previous hash, actor, event id..."
+                  />
+                </div>
+              </label>
+              <label className="audit-sort">
+                <span>Sort</span>
+                <select
+                  aria-label="Audit sort"
+                  value={auditSort}
+                  onChange={(event) => setAuditSort(event.target.value as AuditSort)}
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="event-type">Event type</option>
+                  <option value="actor">Actor</option>
+                  <option value="hash">Current hash</option>
+                </select>
+              </label>
+              <div className="audit-result-card">
+                <strong>{visibleAuditEvents.length}</strong>
+                <span>{auditQuery.trim() ? "matching events" : "events shown"}</span>
+              </div>
+            </div>
+            <div className="audit-list">
+              {visibleAuditEvents.map((event) => (
+                <AuditEventCard
+                  event={event}
+                  hashQuery={auditQuery}
+                  key={event.id}
+                  previousEvent={event.prevHash ? auditEventsByHash.get(event.prevHash) ?? null : null}
+                />
+              ))}
+              {!visibleAuditEvents.length ? (
+                <div className="empty-state audit-empty">
+                  <Hash size={28} />
+                  <strong>No audit events found</strong>
+                  <span>Try a different hash fragment, actor, event name, or entity id.</span>
+                </div>
+              ) : null}
             </div>
           </section>
         )}
@@ -449,21 +893,142 @@ function Timeline({ calls }: { calls: ToolCall[] }) {
       {calls.map((call) => (
         <article className="timeline-item" key={call.id}>
           <div className="timeline-icon">{decisionIcon(call.status)}</div>
-          <div>
+          <div className="timeline-content">
             <div className="timeline-head">
-              <strong>{call.toolName}</strong>
-              <span className={riskClass(call.riskLevel)}>{call.riskScore}</span>
-              <span>{call.status}</span>
+              <div>
+                <span className="session-time">
+                  <Clock size={14} />
+                  {formatDateTime(call.createdAt)}
+                </span>
+                <strong>{humanizeLabel(call.toolName)}</strong>
+                <p>{call.purpose}</p>
+              </div>
+              <div className="call-badges">
+                <span className={riskClass(call.riskLevel)}>
+                  {call.riskLevel} / {call.riskScore}
+                </span>
+                <span className={statusBadgeClass(call.status)}>{humanizeLabel(call.status)}</span>
+                <span className={statusBadgeClass(call.decision)}>{humanizeLabel(call.decision)}</span>
+              </div>
             </div>
-            <p>{call.purpose}</p>
-            <div className="timeline-json">
-              <JsonBlock value={call.arguments} />
-              {call.output ? <JsonBlock value={call.output} /> : null}
+            <div className="call-summary-grid">
+              <ReadablePayload title="Input sent to MCP" rows={formatToolArguments(call)} />
+              <ReadablePayload title="Gateway result" rows={formatToolOutput(call)} />
             </div>
-            <small>{call.reasons.join(" | ")}</small>
+            {call.reasons.length ? (
+              <div className="reason-strip">
+                {call.reasons.map((reason) => (
+                  <span className="reason-chip" key={reason}>
+                    {reason}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <details className="developer-payload">
+              <summary>
+                <Code2 size={15} />
+                Developer payload
+              </summary>
+              <div className="timeline-json">
+                <JsonBlock value={call.arguments} />
+                <JsonBlock value={call.output ?? { result: "No output recorded" }} />
+              </div>
+            </details>
           </div>
         </article>
       ))}
     </div>
+  );
+}
+
+function ReadablePayload({ title, rows }: { title: string; rows: DetailRow[] }) {
+  return (
+    <div className="payload-card">
+      <span className="payload-title">{title}</span>
+      <div className="detail-grid">
+        {rows.map((row) => (
+          <div className="detail-row" key={`${row.label}-${row.value}`}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AuditEventCard({
+  event,
+  hashQuery,
+  previousEvent
+}: {
+  event: AuditEvent;
+  hashQuery: string;
+  previousEvent: AuditEvent | null;
+}) {
+  const rows = auditEventSummaryRows(event.data);
+  const matchLabel = getAuditMatchLabel(event, hashQuery);
+
+  return (
+    <article className="audit-card">
+      <div className="audit-icon">{event.valid ? <CheckCircle2 size={17} /> : <AlertTriangle size={17} />}</div>
+      <div className="audit-content">
+        <div className="audit-title-row">
+          <div>
+            <span className="session-time">
+              <Clock size={14} />
+              {formatDateTime(event.createdAt)}
+            </span>
+            <strong>{humanizeLabel(event.eventType)}</strong>
+          </div>
+          <div className="event-badge-group">
+            {matchLabel ? <span className="badge badge-medium">{matchLabel}</span> : null}
+            <span className={event.valid ? "badge badge-low" : "badge badge-critical"}>
+              {event.valid ? "Hash chain valid" : "Hash mismatch"}
+            </span>
+          </div>
+        </div>
+        <div className="audit-meta">
+          <span>
+            <UserRound size={14} />
+            {event.actor ?? "system"}
+          </span>
+          <span>
+            <Database size={14} />
+            {event.entityType}
+            {event.entityId ? ` / ${event.entityId.slice(0, 8)}` : ""}
+          </span>
+          <span>
+            <Hash size={14} />
+            {shortHash(event.hash)}
+          </span>
+        </div>
+        <ReadablePayload title="Event summary" rows={rows} />
+        <details className="developer-payload">
+          <summary>
+            <Code2 size={15} />
+            Raw audit payload and hashes
+          </summary>
+          <div className="hash-grid">
+            <div>
+              <span>Previous hash</span>
+              <code>{event.prevHash ?? "Genesis event"}</code>
+              <small>
+                {previousEvent
+                  ? `Points to ${humanizeLabel(previousEvent.eventType)} from ${formatDateTime(previousEvent.createdAt)}`
+                  : event.prevHash
+                    ? "No matching previous event loaded"
+                    : "Start of this audit chain"}
+              </small>
+            </div>
+            <div>
+              <span>Current hash</span>
+              <code>{event.hash}</code>
+            </div>
+          </div>
+          <JsonBlock value={event.data} />
+        </details>
+      </div>
+    </article>
   );
 }
