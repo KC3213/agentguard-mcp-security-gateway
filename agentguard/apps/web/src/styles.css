@@ -277,6 +277,7 @@ select:focus {
 .workflow-step:hover,
 .scenario-grid button:hover,
 .timeline-item:hover,
+.audit-card:hover,
 .approval-card:hover,
 .policy-card:hover {
   transform: translateY(-2px);
@@ -644,6 +645,19 @@ td span {
   gap: 18px;
 }
 
+.session-column,
+.timeline-panel {
+  min-width: 0;
+}
+
+.compact-title {
+  margin-bottom: 10px;
+}
+
+.compact-title .muted {
+  font-size: 13px;
+}
+
 .session-list {
   display: grid;
   align-content: start;
@@ -658,6 +672,12 @@ td span {
   background: #0c1321;
   padding: 11px;
   text-align: left;
+}
+
+.session-list .session-active {
+  border-color: rgba(250, 204, 21, 0.54);
+  background: #1d1a0d;
+  box-shadow: inset 3px 0 0 #facc15;
 }
 
 .session-list button:hover {
@@ -677,6 +697,88 @@ td span {
 .session-list span {
   color: #cbd5e1;
   margin-top: 4px;
+}
+
+.session-list small {
+  display: block;
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.session-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.session-time svg {
+  color: #facc15;
+}
+
+.session-summary {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  border-radius: 8px;
+  padding: 15px;
+  background: #0b1220;
+}
+
+.session-summary h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 22px;
+}
+
+.session-summary p {
+  margin: 7px 0 0;
+  color: #cbd5e1;
+  line-height: 1.55;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.summary-item {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  padding: 10px;
+  background: #0c1321;
+}
+
+.summary-item span,
+.detail-row span,
+.payload-title,
+.hash-grid span {
+  display: block;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.summary-item strong,
+.detail-row strong {
+  display: block;
+  margin-top: 5px;
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.compact-answer {
+  margin-top: 0;
 }
 
 .timeline {
@@ -705,18 +807,28 @@ td span {
   color: #facc15;
 }
 
+.timeline-content {
+  min-width: 0;
+}
+
 .timeline-head {
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 8px;
   flex-wrap: wrap;
 }
 
 .timeline-head strong {
+  display: block;
   color: #f8fafc;
   font-size: 17px;
 }
 
-.timeline-head > span:last-child {
-  color: #94a3b8;
+.call-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
 }
 
 .timeline-item p {
@@ -729,10 +841,83 @@ td span {
   color: #94a3b8;
 }
 
+.call-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 11px;
+}
+
+.payload-card {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  padding: 12px;
+  background: #0a101b;
+}
+
+.payload-title {
+  margin-bottom: 9px;
+  color: #facc15;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.detail-row {
+  min-width: 0;
+  border-left: 2px solid rgba(250, 204, 21, 0.28);
+  padding-left: 9px;
+}
+
+.reason-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.reason-chip {
+  border: 1px solid rgba(250, 204, 21, 0.2);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: rgba(250, 204, 21, 0.08);
+  color: #fef3c7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.developer-payload {
+  margin-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-top: 10px;
+}
+
+.developer-payload summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #facc15;
+  font-size: 13px;
+  font-weight: 900;
+  list-style: none;
+}
+
+.developer-payload summary::-webkit-details-marker {
+  display: none;
+}
+
+.developer-payload summary:hover {
+  color: #fef3c7;
+}
+
 .timeline-json {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  margin-top: 9px;
   min-width: 0;
 }
 
@@ -760,6 +945,98 @@ td span {
   background: #1d1a0d;
   color: #fef9c3;
   line-height: 1.55;
+}
+
+.audit-list {
+  display: grid;
+  gap: 12px;
+}
+
+.audit-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  padding: 13px;
+  background: #0c1321;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+.audit-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.14);
+  color: #facc15;
+}
+
+.audit-content {
+  min-width: 0;
+}
+
+.audit-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.audit-title-row strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 17px;
+}
+
+.audit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.audit-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.audit-meta svg {
+  color: #facc15;
+}
+
+.hash-grid {
+  display: grid;
+  gap: 8px;
+  margin: 9px 0;
+}
+
+.hash-grid div {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 8px;
+  padding: 9px;
+  background: #070b12;
+}
+
+.hash-grid code {
+  display: block;
+  margin-top: 5px;
+  color: #d9f99d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .empty-state {
@@ -849,6 +1126,8 @@ button:disabled {
   }
 
   .timeline-json,
+  .call-summary-grid,
+  .summary-grid,
   .scenario-grid {
     grid-template-columns: 1fr;
   }
@@ -874,7 +1153,8 @@ button:disabled {
   }
 
   .topbar,
-  .controls-row {
+  .controls-row,
+  .audit-title-row {
     align-items: stretch;
     flex-direction: column;
   }

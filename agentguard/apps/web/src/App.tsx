@@ -5,9 +5,12 @@ import {
   ArrowRight,
   Bot,
   CheckCircle2,
+  Clock,
+  Code2,
   ClipboardCheck,
   Database,
   FileSearch,
+  Hash,
   History,
   Play,
   RefreshCw,
@@ -15,6 +18,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   TerminalSquare,
+  UserRound,
   Workflow,
   XCircle
 } from "lucide-react";
@@ -45,6 +49,12 @@ const demoPrompts = [
 ];
 
 type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
+type DetailRow = { label: string; value: string };
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short"
+});
 
 function riskClass(level: string) {
   if (level === "CRITICAL") return "badge badge-critical";
@@ -77,6 +87,197 @@ function MetricCard({ label, value, icon: Icon }: { label: string; value: number
 
 function workflowClass(state: WorkflowState) {
   return `workflow-step workflow-${state}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function humanizeLabel(value: string | null | undefined) {
+  if (!value) return "Not recorded";
+  return value
+    .replace(/[._-]+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Time not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Invalid time";
+  return dateTimeFormatter.format(date);
+}
+
+function previewText(value: unknown, maxLength = 180) {
+  const text =
+    typeof value === "string"
+      ? value
+      : value === null || value === undefined
+        ? ""
+        : JSON.stringify(value);
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return "Not provided";
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3)}...` : normalized;
+}
+
+function summarizeValue(value: unknown, maxLength = 160): string {
+  if (value === null || value === undefined || value === "") return "Not provided";
+  if (typeof value === "string") return previewText(value, maxLength);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    if (!value.length) return "No items";
+    return `${value.length} item${value.length === 1 ? "" : "s"}: ${previewText(
+      value.map((item) => summarizeValue(item, 60)).join(", "),
+      maxLength
+    )}`;
+  }
+  if (isRecord(value)) {
+    return previewText(
+      Object.entries(value)
+        .slice(0, 4)
+        .map(([key, entryValue]) => `${humanizeLabel(key)}: ${summarizeValue(entryValue, 50)}`)
+        .join("; "),
+      maxLength
+    );
+  }
+  return previewText(String(value), maxLength);
+}
+
+function detailRowsFromRecord(record: Record<string, unknown>): DetailRow[] {
+  const rows = Object.entries(record).map(([key, value]) => ({
+    label: humanizeLabel(key),
+    value: summarizeValue(value)
+  }));
+  return rows.length ? rows : [{ label: "Payload", value: "No fields recorded" }];
+}
+
+function formatToolArguments(call: ToolCall): DetailRow[] {
+  const args = call.arguments ?? {};
+
+  if (call.toolName === "send_email") {
+    return [
+      { label: "Recipient", value: summarizeValue(args.to) },
+      { label: "Subject", value: summarizeValue(args.subject) },
+      { label: "Body preview", value: summarizeValue(args.body, 220) }
+    ];
+  }
+
+  if (call.toolName === "query_database") {
+    return [{ label: "SQL query", value: summarizeValue(args.sql, 260) }];
+  }
+
+  if (call.toolName === "read_document") {
+    return [{ label: "Document path", value: summarizeValue(args.path) }];
+  }
+
+  if (call.toolName === "create_ticket") {
+    return [
+      { label: "Title", value: summarizeValue(args.title) },
+      { label: "Priority", value: summarizeValue(args.priority) },
+      { label: "Description", value: summarizeValue(args.description, 220) }
+    ];
+  }
+
+  return detailRowsFromRecord(args);
+}
+
+function formatToolOutput(call: ToolCall): DetailRow[] {
+  if (!call.output) {
+    const reason = call.status.includes("BLOCK")
+      ? "Blocked before the MCP tool executed"
+      : "No output returned yet";
+    return [{ label: "Result", value: reason }];
+  }
+
+  if (!isRecord(call.output)) {
+    return [{ label: "Result", value: summarizeValue(call.output, 220) }];
+  }
+
+  if (call.toolName === "send_email") {
+    return [
+      { label: "Mock email status", value: summarizeValue(call.output.status) },
+      { label: "Record id", value: summarizeValue(call.output.id) },
+      { label: "Safety note", value: summarizeValue(call.output.note, 220) }
+    ];
+  }
+
+  if (call.toolName === "query_database" && Array.isArray(call.output.rows)) {
+    const rows = call.output.rows;
+    const firstRow = rows.find((row) => isRecord(row));
+    return [
+      { label: "Rows returned", value: String(rows.length) },
+      {
+        label: "Columns",
+        value: firstRow && isRecord(firstRow) ? Object.keys(firstRow).join(", ") : "No columns"
+      },
+      { label: "First row preview", value: firstRow ? summarizeValue(firstRow, 220) : "No rows returned" }
+    ];
+  }
+
+  if (call.toolName === "read_document") {
+    return [
+      { label: "Document", value: summarizeValue(call.output.path) },
+      { label: "Text preview", value: summarizeValue(call.output.text, 260) }
+    ];
+  }
+
+  if (call.toolName === "create_ticket") {
+    return [
+      { label: "Ticket id", value: summarizeValue(call.output.id) },
+      { label: "Status", value: summarizeValue(call.output.status) },
+      { label: "Priority", value: summarizeValue(call.output.priority) }
+    ];
+  }
+
+  return detailRowsFromRecord(call.output);
+}
+
+function statusBadgeClass(status: string) {
+  const normalized = status.toUpperCase();
+  if (normalized.includes("BLOCK") || normalized.includes("REJECT")) return "badge badge-critical";
+  if (normalized.includes("APPROVAL") || normalized.includes("PENDING") || normalized.includes("WAIT")) {
+    return "badge badge-high";
+  }
+  if (normalized.includes("LOG") || normalized.includes("MEDIUM")) return "badge badge-medium";
+  return "badge badge-low";
+}
+
+function shortHash(hash: string | null | undefined) {
+  return hash ? `${hash.slice(0, 10)}...${hash.slice(-6)}` : "Genesis event";
+}
+
+function auditEventSummaryRows(data: unknown): DetailRow[] {
+  if (!isRecord(data)) return [{ label: "Summary", value: summarizeValue(data, 220) }];
+
+  const rows: DetailRow[] = [];
+
+  if (typeof data.prompt === "string") {
+    rows.push({ label: "Prompt", value: summarizeValue(data.prompt, 220) });
+  }
+
+  if (Array.isArray(data.plannedCalls)) {
+    const planned = data.plannedCalls.map((call) =>
+      isRecord(call)
+        ? `${summarizeValue(call.toolName, 40)} (${summarizeValue(call.purpose, 80)})`
+        : summarizeValue(call, 80)
+    );
+    rows.push({ label: "Planned tools", value: planned.join(" -> ") || "No planned tool calls" });
+  }
+
+  if (data.toolName) rows.push({ label: "Tool", value: summarizeValue(data.toolName) });
+  if (data.name) rows.push({ label: "Name", value: summarizeValue(data.name) });
+  if (data.status) rows.push({ label: "Status", value: summarizeValue(data.status) });
+  if (data.decision) rows.push({ label: "Decision", value: summarizeValue(data.decision) });
+  if (data.postDecision) rows.push({ label: "Post-check decision", value: summarizeValue(data.postDecision) });
+  if (data.riskScore !== undefined) rows.push({ label: "Risk score", value: summarizeValue(data.riskScore) });
+  if (Array.isArray(data.reasons)) rows.push({ label: "Policy reasons", value: data.reasons.join("; ") });
+  if (data.finalAnswer) rows.push({ label: "Gateway result", value: summarizeValue(data.finalAnswer, 260) });
+  if (data.count !== undefined) rows.push({ label: "Discovered count", value: summarizeValue(data.count) });
+  if (Array.isArray(data.tools)) rows.push({ label: "Tools", value: data.tools.map((tool) => summarizeValue(tool)).join(", ") });
+
+  if (rows.length) return rows;
+  return detailRowsFromRecord(data);
 }
 
 export function App() {
@@ -203,6 +404,8 @@ export function App() {
       }
     ] satisfies Array<{ label: string; detail: string; view: View; state: WorkflowState }>;
   }, [activeSession, metrics.calls, pendingApprovals.length]);
+  const selectedFlightSession = activeSession ?? sessions[0] ?? null;
+  const selectedFlightCalls = selectedFlightSession?.toolCalls ?? toolCalls.slice(0, 8);
 
   async function runSession() {
     setLoading(true);
@@ -467,17 +670,76 @@ export function App() {
         {view === "flight" && (
           <section className="panel">
             <div className="flight-layout">
-              <div className="session-list">
-                {sessions.map((session) => (
-                  <button key={session.id} onClick={() => setActiveSession(session)}>
-                    <strong>{session.status}</strong>
-                    <span>{session.prompt}</span>
-                  </button>
-                ))}
+              <div className="session-column">
+                <div className="section-title compact-title">
+                  <h2>Recorded Sessions</h2>
+                  <span className="count-pill">{sessions.length}</span>
+                </div>
+                <div className="session-list">
+                  {sessions.map((session) => (
+                    <button
+                      key={session.id}
+                      className={selectedFlightSession?.id === session.id ? "session-active" : ""}
+                      onClick={() => setActiveSession(session)}
+                    >
+                      <span className="session-time">
+                        <Clock size={14} />
+                        {formatDateTime(session.createdAt)}
+                      </span>
+                      <strong>{humanizeLabel(session.status)}</strong>
+                      <span>{previewText(session.prompt, 96)}</span>
+                      <small>
+                        {session.planned.length} planned / {session.toolCalls?.length ?? 0} recorded
+                      </small>
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="timeline-panel">
-                <h2>Tool Timeline</h2>
-                <Timeline calls={activeSession?.toolCalls ?? toolCalls.slice(0, 8)} />
+                {selectedFlightSession ? (
+                  <div className="session-summary">
+                    <div>
+                      <span className="session-time">
+                        <Clock size={14} />
+                        {formatDateTime(selectedFlightSession.createdAt)}
+                      </span>
+                      <h2>{humanizeLabel(selectedFlightSession.status)} Session</h2>
+                      <p>{selectedFlightSession.prompt}</p>
+                    </div>
+                    <div className="summary-grid">
+                      <div className="summary-item">
+                        <span>Actor</span>
+                        <strong>{selectedFlightSession.userEmail}</strong>
+                      </div>
+                      <div className="summary-item">
+                        <span>Role</span>
+                        <strong>{humanizeLabel(selectedFlightSession.userRole)}</strong>
+                      </div>
+                      <div className="summary-item">
+                        <span>Planned calls</span>
+                        <strong>{selectedFlightSession.planned.length}</strong>
+                      </div>
+                      <div className="summary-item">
+                        <span>Recorded calls</span>
+                        <strong>{selectedFlightSession.toolCalls?.length ?? 0}</strong>
+                      </div>
+                    </div>
+                    {selectedFlightSession.finalAnswer ? (
+                      <p className="answer compact-answer">{selectedFlightSession.finalAnswer}</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <History size={28} />
+                    <strong>No sessions yet</strong>
+                    <span>Run the agent once to create a readable execution timeline.</span>
+                  </div>
+                )}
+                <div className="section-title compact-title">
+                  <h2>Tool Timeline</h2>
+                  <span className="muted">{selectedFlightCalls.length} event(s)</span>
+                </div>
+                <Timeline calls={selectedFlightCalls} />
               </div>
             </div>
           </section>
@@ -485,38 +747,17 @@ export function App() {
 
         {view === "audit" && (
           <section className="panel">
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Event</th>
-                    <th>Actor</th>
-                    <th>Hash</th>
-                    <th>Chain</th>
-                    <th>Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditEvents.map((event) => (
-                    <tr key={event.id}>
-                      <td>
-                        <strong>{event.eventType}</strong>
-                        <span>{event.entityType}</span>
-                      </td>
-                      <td>{event.actor ?? "system"}</td>
-                      <td className="mono">{event.hash.slice(0, 14)}...</td>
-                      <td>
-                        <span className={event.valid ? "badge badge-low" : "badge badge-critical"}>
-                          {event.valid ? "valid" : "check"}
-                        </span>
-                      </td>
-                      <td>
-                        <JsonBlock value={event.data} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="section-title">
+              <div>
+                <h2>Tamper-Evident Audit Trail</h2>
+                <p className="muted">Readable event history with the raw payload available when you need it.</p>
+              </div>
+              <span className="count-pill">{auditEvents.length}</span>
+            </div>
+            <div className="audit-list">
+              {auditEvents.map((event) => (
+                <AuditEventCard event={event} key={event.id} />
+              ))}
             </div>
           </section>
         )}
@@ -551,21 +792,123 @@ function Timeline({ calls }: { calls: ToolCall[] }) {
       {calls.map((call) => (
         <article className="timeline-item" key={call.id}>
           <div className="timeline-icon">{decisionIcon(call.status)}</div>
-          <div>
+          <div className="timeline-content">
             <div className="timeline-head">
-              <strong>{call.toolName}</strong>
-              <span className={riskClass(call.riskLevel)}>{call.riskScore}</span>
-              <span>{call.status}</span>
+              <div>
+                <span className="session-time">
+                  <Clock size={14} />
+                  {formatDateTime(call.createdAt)}
+                </span>
+                <strong>{humanizeLabel(call.toolName)}</strong>
+                <p>{call.purpose}</p>
+              </div>
+              <div className="call-badges">
+                <span className={riskClass(call.riskLevel)}>
+                  {call.riskLevel} / {call.riskScore}
+                </span>
+                <span className={statusBadgeClass(call.status)}>{humanizeLabel(call.status)}</span>
+                <span className={statusBadgeClass(call.decision)}>{humanizeLabel(call.decision)}</span>
+              </div>
             </div>
-            <p>{call.purpose}</p>
-            <div className="timeline-json">
-              <JsonBlock value={call.arguments} />
-              {call.output ? <JsonBlock value={call.output} /> : null}
+            <div className="call-summary-grid">
+              <ReadablePayload title="Input sent to MCP" rows={formatToolArguments(call)} />
+              <ReadablePayload title="Gateway result" rows={formatToolOutput(call)} />
             </div>
-            <small>{call.reasons.join(" | ")}</small>
+            {call.reasons.length ? (
+              <div className="reason-strip">
+                {call.reasons.map((reason) => (
+                  <span className="reason-chip" key={reason}>
+                    {reason}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <details className="developer-payload">
+              <summary>
+                <Code2 size={15} />
+                Developer payload
+              </summary>
+              <div className="timeline-json">
+                <JsonBlock value={call.arguments} />
+                <JsonBlock value={call.output ?? { result: "No output recorded" }} />
+              </div>
+            </details>
           </div>
         </article>
       ))}
     </div>
+  );
+}
+
+function ReadablePayload({ title, rows }: { title: string; rows: DetailRow[] }) {
+  return (
+    <div className="payload-card">
+      <span className="payload-title">{title}</span>
+      <div className="detail-grid">
+        {rows.map((row) => (
+          <div className="detail-row" key={`${row.label}-${row.value}`}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AuditEventCard({ event }: { event: AuditEvent }) {
+  const rows = auditEventSummaryRows(event.data);
+
+  return (
+    <article className="audit-card">
+      <div className="audit-icon">{event.valid ? <CheckCircle2 size={17} /> : <AlertTriangle size={17} />}</div>
+      <div className="audit-content">
+        <div className="audit-title-row">
+          <div>
+            <span className="session-time">
+              <Clock size={14} />
+              {formatDateTime(event.createdAt)}
+            </span>
+            <strong>{humanizeLabel(event.eventType)}</strong>
+          </div>
+          <span className={event.valid ? "badge badge-low" : "badge badge-critical"}>
+            {event.valid ? "Hash chain valid" : "Hash mismatch"}
+          </span>
+        </div>
+        <div className="audit-meta">
+          <span>
+            <UserRound size={14} />
+            {event.actor ?? "system"}
+          </span>
+          <span>
+            <Database size={14} />
+            {event.entityType}
+            {event.entityId ? ` / ${event.entityId.slice(0, 8)}` : ""}
+          </span>
+          <span>
+            <Hash size={14} />
+            {shortHash(event.hash)}
+          </span>
+        </div>
+        <ReadablePayload title="Event summary" rows={rows} />
+        <details className="developer-payload">
+          <summary>
+            <Code2 size={15} />
+            Raw audit payload and hashes
+          </summary>
+          <div className="hash-grid">
+            <div>
+              <span>Previous hash</span>
+              <code>{event.prevHash ?? "Genesis event"}</code>
+            </div>
+            <div>
+              <span>Current hash</span>
+              <code>{event.hash}</code>
+            </div>
+          </div>
+          <JsonBlock value={event.data} />
+        </details>
+      </div>
+    </article>
   );
 }
