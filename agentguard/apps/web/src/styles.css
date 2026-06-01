@@ -257,6 +257,10 @@ input:focus {
   margin-bottom: 14px;
 }
 
+.audit-metrics-grid {
+  margin-bottom: 18px;
+}
+
 .metric-card,
 .panel,
 .approval-card,
@@ -310,6 +314,14 @@ input:focus {
   gap: 12px;
   margin-bottom: 18px;
   padding: 14px;
+}
+
+.console-workflow-rail {
+  margin: 0 0 16px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }
 
 .workflow-title {

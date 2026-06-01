@@ -564,34 +564,35 @@ export function App() {
           </div>
         </header>
 
-        <section className="metrics-grid">
-          <MetricCard label="Sessions" value={metrics.sessions} icon={Activity} />
-          <MetricCard label="Tool Calls" value={metrics.calls} icon={Database} />
-          <MetricCard label="Pending" value={metrics.pendingApprovals} icon={ClipboardCheck} />
-          <MetricCard label="Blocked" value={metrics.blocked} icon={AlertTriangle} />
-        </section>
-
-        <section className="workflow-rail" aria-label="AgentGuard workflow">
-          <div className="workflow-title">
-            <Workflow size={18} />
-            <span>Live workflow</span>
-          </div>
-          <div className="workflow-steps">
-            {workflowStages.map((stage, index) => (
-              <button key={stage.label} className={workflowClass(stage.state)} onClick={() => setView(stage.view)}>
-                <span className="workflow-index">{index + 1}</span>
-                <span>
-                  <strong>{stage.label}</strong>
-                  <small>{stage.detail}</small>
-                </span>
-                {index < workflowStages.length - 1 ? <ArrowRight size={15} className="workflow-arrow" /> : null}
-              </button>
-            ))}
-          </div>
-        </section>
+        {view === "audit" ? (
+          <section className="metrics-grid audit-metrics-grid" aria-label="Audit overview">
+            <MetricCard label="Audit Events" value={auditEvents.length} icon={FileSearch} />
+            <MetricCard label="Visible Results" value={visibleAuditEvents.length} icon={Search} />
+            <MetricCard label="Valid Chain" value={auditEvents.filter((event) => event.valid).length} icon={CheckCircle2} />
+            <MetricCard label="Hash Issues" value={auditEvents.filter((event) => !event.valid).length} icon={AlertTriangle} />
+          </section>
+        ) : null}
 
         {view === "console" && (
           <section className="panel console-panel">
+            <section className="workflow-rail console-workflow-rail" aria-label="AgentGuard workflow">
+              <div className="workflow-title">
+                <Workflow size={18} />
+                <span>Console workflow</span>
+              </div>
+              <div className="workflow-steps">
+                {workflowStages.map((stage, index) => (
+                  <button key={stage.label} className={workflowClass(stage.state)} onClick={() => setView(stage.view)}>
+                    <span className="workflow-index">{index + 1}</span>
+                    <span>
+                      <strong>{stage.label}</strong>
+                      <small>{stage.detail}</small>
+                    </span>
+                    {index < workflowStages.length - 1 ? <ArrowRight size={15} className="workflow-arrow" /> : null}
+                  </button>
+                ))}
+              </div>
+            </section>
             <div className="console-layout">
               <div className="console-input">
                 <div className="panel-heading">
