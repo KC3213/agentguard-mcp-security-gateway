@@ -88,6 +88,22 @@ const labExamples: Record<string, { purpose: string; arguments: Record<string, u
       subject: "MCP Lab synthetic update",
       body: "Synthetic update from AgentGuard MCP Lab. No real email is sent."
     }
+  },
+  read_text_file: {
+    purpose: "MCP Lab: read a demo file through real Filesystem MCP",
+    arguments: { path: "/Users/kachadha/Documents/my project/agentguard/demo-data/public_report.txt" }
+  },
+  list_directory: {
+    purpose: "MCP Lab: list the synthetic demo-data folder through real Filesystem MCP",
+    arguments: { path: "/Users/kachadha/Documents/my project/agentguard/demo-data" }
+  },
+  status: {
+    purpose: "MCP Lab: inspect this Git repo through real Git MCP",
+    arguments: { path: "/Users/kachadha/Documents/my project" }
+  },
+  diff: {
+    purpose: "MCP Lab: inspect Git diff stats through real Git MCP",
+    arguments: { path: "/Users/kachadha/Documents/my project" }
   }
 };
 
@@ -104,7 +120,7 @@ const mcpServerPresets = [
   {
     id: "filesystem",
     label: "Filesystem MCP",
-    description: "Open-source filesystem server preset for the next integration step.",
+    description: "Real open-source filesystem MCP restricted to demo-data and docs.",
     name: "Open Source Filesystem MCP",
     command: "npx",
     args: ["-y", "@modelcontextprotocol/server-filesystem", "demo-data", "docs"],
@@ -113,11 +129,11 @@ const mcpServerPresets = [
   {
     id: "git",
     label: "Git MCP",
-    description: "Open-source Git server preset for repo inspection workflows.",
+    description: "Real open-source Git MCP for read-first repository inspection.",
     name: "Open Source Git MCP",
-    command: "uvx",
-    args: ["mcp-server-git", "--repository", "/Users/kachadha/Documents/my project/agentguard"],
-    allowedDirectories: ["/Users/kachadha/Documents/my project/agentguard"]
+    command: "npx",
+    args: ["-y", "@paretools/git"],
+    allowedDirectories: ["/Users/kachadha/Documents/my project"]
   }
 ];
 

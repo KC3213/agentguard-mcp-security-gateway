@@ -11,8 +11,47 @@ const baseToolRisk: Record<string, number> = {
   create_ticket: 10,
   read_document: 25,
   query_database: 35,
-  send_email: 45
+  send_email: 45,
+  list_allowed_directories: 10,
+  list_directory: 20,
+  list_directory_with_sizes: 20,
+  directory_tree: 25,
+  get_file_info: 20,
+  search_files: 25,
+  read_text_file: 30,
+  read_media_file: 35,
+  read_multiple_files: 40,
+  status: 20,
+  log: 25,
+  diff: 35,
+  show: 35,
+  branch: 70,
+  add: 85,
+  commit: 90,
+  push: 95,
+  pull: 70,
+  checkout: 85,
+  create_directory: 70,
+  write_file: 90,
+  edit_file: 90,
+  move_file: 85
 };
+
+const filesystemReadTools = new Set([
+  "list_allowed_directories",
+  "list_directory",
+  "list_directory_with_sizes",
+  "directory_tree",
+  "get_file_info",
+  "search_files",
+  "read_text_file",
+  "read_media_file",
+  "read_multiple_files"
+]);
+
+const filesystemMutationTools = new Set(["create_directory", "write_file", "edit_file", "move_file"]);
+const gitReadTools = new Set(["status", "log", "diff", "show"]);
+const gitMutationTools = new Set(["branch", "add", "commit", "push", "pull", "checkout"]);
 
 const suspiciousDescriptorTerms = [
   "ignore previous",
@@ -180,12 +219,31 @@ export function scanToolDescriptor(tool: ToolDescriptor): ToolScanResult {
     reasons.push("Can access structured business data");
   }
 
-  const status: ToolStatus =
-    tool.name === "send_email"
-      ? "REQUIRES_APPROVAL"
-      : tool.name in baseToolRisk
-        ? "APPROVED"
-        : "BLOCKED";
+  if (filesystemReadTools.has(tool.name)) {
+    reasons.push("Filesystem read tool restricted by server allowlist");
+  }
+
+  if (filesystemMutationTools.has(tool.name)) {
+    reasons.push("Filesystem mutation tool blocked by default");
+  }
+
+  if (gitReadTools.has(tool.name)) {
+    reasons.push("Git repository inspection tool");
+  }
+
+  if (gitMutationTools.has(tool.name)) {
+    reasons.push("Git mutation tool blocked by default");
+  }
+
+  const status: ToolStatus = filesystemMutationTools.has(tool.name)
+    ? "BLOCKED"
+    : gitMutationTools.has(tool.name)
+      ? "BLOCKED"
+      : tool.name === "send_email"
+        ? "REQUIRES_APPROVAL"
+        : tool.name in baseToolRisk
+          ? "APPROVED"
+          : "BLOCKED";
 
   const clampedRisk = Math.min(100, riskScore);
 
@@ -198,7 +256,7 @@ export function scanToolDescriptor(tool: ToolDescriptor): ToolScanResult {
     trustScore: Math.max(0, 100 - clampedRisk),
     riskLevel: riskLevel(clampedRisk),
     status,
-    reasons: reasons.length ? reasons : ["Known demo tool with synthetic-only access"]
+    reasons: reasons.length ? reasons : ["Known governed tool"]
   };
 }
 
@@ -236,6 +294,21 @@ export function evaluateToolCall(input: EvaluateToolCallInput): FirewallResult {
   if (input.toolName === "read_document" && containsPathTraversal(input.arguments)) {
     hardBlock = true;
     reasons.push("Path traversal attempt detected");
+  }
+
+  if ((filesystemReadTools.has(input.toolName) || filesystemMutationTools.has(input.toolName)) && containsPathTraversal(input.arguments)) {
+    hardBlock = true;
+    reasons.push("Filesystem path traversal attempt detected");
+  }
+
+  if (filesystemMutationTools.has(input.toolName)) {
+    hardBlock = true;
+    reasons.push("Filesystem mutation tools are blocked in the demo gateway");
+  }
+
+  if (gitMutationTools.has(input.toolName)) {
+    hardBlock = true;
+    reasons.push("Git mutation tools are blocked in the demo gateway");
   }
 
   const pii = detectPii(input.arguments);

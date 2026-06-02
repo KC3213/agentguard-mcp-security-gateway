@@ -4,6 +4,7 @@ import { prisma } from "../prisma";
 import { recordAuditEvent } from "./audit";
 import { scanAndPersistTools } from "./gateway";
 import { publicMcpServer } from "./mapper";
+import { mcpClient } from "./mcpClient";
 
 type OnboardInput = z.infer<typeof mcpServerOnboardSchema>;
 
@@ -20,10 +21,6 @@ function endpointFromInput(input: OnboardInput) {
     null,
     2
   );
-}
-
-function isAgentGuardDemoServer(endpoint: string, name: string) {
-  return endpoint.includes("mock-mcp-server") || name.toLowerCase().includes("synthetic company tools");
 }
 
 export async function listMcpServers() {
@@ -85,7 +82,32 @@ export async function testMcpServerConnection(serverId: string, actor: string) {
     throw new Error("MCP server not found");
   }
 
-  const status = isAgentGuardDemoServer(server.endpoint, server.name) ? "ONLINE" : "ONBOARDED";
+  let probe;
+
+  try {
+    probe = await mcpClient.testConnection(server.endpoint);
+  } catch (error) {
+    await prisma.mcpServer.update({
+      where: { id: serverId },
+      data: { status: "ERROR" }
+    });
+
+    await recordAuditEvent({
+      eventType: "MCP_SERVER_CONNECTION_FAILED",
+      entityType: "McpServer",
+      entityId: serverId,
+      actor,
+      data: {
+        name: server.name,
+        status: "ERROR",
+        error: error instanceof Error ? error.message : "Unknown MCP connection error"
+      }
+    });
+
+    throw error;
+  }
+
+  const status = "ONLINE";
   const updatedServer = await prisma.mcpServer.update({
     where: { id: serverId },
     data: { status },
@@ -96,17 +118,15 @@ export async function testMcpServerConnection(serverId: string, actor: string) {
   });
 
   await recordAuditEvent({
-    eventType: status === "ONLINE" ? "MCP_SERVER_CONNECTED" : "MCP_SERVER_REGISTERED",
+    eventType: "MCP_SERVER_CONNECTED",
     entityType: "McpServer",
     entityId: serverId,
     actor,
     data: {
       name: server.name,
       status,
-      note:
-        status === "ONLINE"
-          ? "AgentGuard demo MCP server is available for tool discovery."
-          : "Server metadata is onboarded. External server connection adapters are planned next."
+      toolCount: probe.toolCount,
+      tools: probe.tools
     }
   });
 
@@ -118,10 +138,6 @@ export async function scanMcpServer(serverId: string, actor: string) {
 
   if (!server) {
     throw new Error("MCP server not found");
-  }
-
-  if (!isAgentGuardDemoServer(server.endpoint, server.name)) {
-    throw new Error("Tool discovery is currently enabled for the AgentGuard demo MCP server only.");
   }
 
   const tools = await scanAndPersistTools(actor, serverId);
