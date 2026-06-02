@@ -106,6 +106,7 @@ describe("App", () => {
 
     expect(await screen.findByText("AgentGuard")).toBeInTheDocument();
     expect(screen.getByText("MCP Lab")).toBeInTheDocument();
+    expect(screen.getByText("MCP Control Plane")).toBeInTheDocument();
     expect(screen.getByText("Tool Registry")).toBeInTheDocument();
     expect(screen.getByText("Flight Recorder")).toBeInTheDocument();
   });
@@ -135,6 +136,12 @@ describe("App", () => {
     expect(await screen.findByText("MCP Tool Playground")).toBeInTheDocument();
     expect(screen.getByLabelText("MCP tool")).toBeInTheDocument();
     expect(screen.getByText("Run Through Gateway")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /MCP Control Plane/i }));
+
+    expect(await screen.findByText("MCP Server Onboarding")).toBeInTheDocument();
+    expect(screen.getByText("AgentGuard Demo MCP")).toBeInTheDocument();
+    expect(screen.getByText("Onboard MCP Server")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Audit Log/i }));
 
