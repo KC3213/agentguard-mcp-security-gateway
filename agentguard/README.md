@@ -147,6 +147,7 @@ Read the docs in this order:
 9. `docs/11-end-to-end-workflow.md` for the complete workflow from prompt to audit log.
 10. `docs/12-mcp-lab.md` for the manual MCP tool playground workflow.
 11. `docs/13-mcp-control-plane.md` for MCP server onboarding and governance.
+12. `docs/14-real-mcp-integrations.md` for the Filesystem/Git MCP integration plan.
 
 ## Screenshots To Capture
 
