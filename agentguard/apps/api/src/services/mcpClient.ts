@@ -81,6 +81,10 @@ function isDemoConfig(config: McpServerConfig) {
 }
 
 function resolveCommand(command: string) {
+  if (command === "mcp-server-filesystem" || command === "pare-git") {
+    return path.join(rootDir, "node_modules/.bin", command);
+  }
+
   if (command === "tsx") {
     return path.join(rootDir, "node_modules/.bin/tsx");
   }

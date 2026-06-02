@@ -93,6 +93,10 @@ const labExamples: Record<string, { purpose: string; arguments: Record<string, u
     purpose: "MCP Lab: read a demo file through real Filesystem MCP",
     arguments: { path: "/Users/kachadha/Documents/my project/agentguard/demo-data/public_report.txt" }
   },
+  read_file: {
+    purpose: "MCP Lab: read a demo file through real Filesystem MCP",
+    arguments: { path: "/Users/kachadha/Documents/my project/agentguard/demo-data/public_report.txt" }
+  },
   list_directory: {
     purpose: "MCP Lab: list the synthetic demo-data folder through real Filesystem MCP",
     arguments: { path: "/Users/kachadha/Documents/my project/agentguard/demo-data" }
@@ -122,8 +126,8 @@ const mcpServerPresets = [
     label: "Filesystem MCP",
     description: "Real open-source filesystem MCP restricted to demo-data and docs.",
     name: "Open Source Filesystem MCP",
-    command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "demo-data", "docs"],
+    command: "mcp-server-filesystem",
+    args: ["demo-data", "docs"],
     allowedDirectories: ["demo-data", "docs"]
   },
   {
@@ -131,8 +135,8 @@ const mcpServerPresets = [
     label: "Git MCP",
     description: "Real open-source Git MCP for read-first repository inspection.",
     name: "Open Source Git MCP",
-    command: "npx",
-    args: ["-y", "@paretools/git"],
+    command: "pare-git",
+    args: [],
     allowedDirectories: ["/Users/kachadha/Documents/my project"]
   }
 ];

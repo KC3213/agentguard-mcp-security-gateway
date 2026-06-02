@@ -71,6 +71,26 @@ demo-data/
 docs/
 ```
 
+For this prototype, the preset pins:
+
+```text
+@modelcontextprotocol/server-filesystem@2025.8.21
+```
+
+Reason:
+
+```text
+AgentGuard intentionally uses the stable 1.x TypeScript MCP SDK. The latest Filesystem server can move faster than the pinned SDK, so the preset uses a compatible 2025-era server version for predictable demos.
+```
+
+The package is installed as a dev dependency and launched through the local binary:
+
+```text
+mcp-server-filesystem demo-data docs
+```
+
+This is more reliable than resolving the package through `npx` during a live interview.
+
 Expected workflow:
 
 ```text
@@ -97,6 +117,18 @@ The Git server should point only at this project repository:
 
 ```text
 /Users/kachadha/Documents/my project
+```
+
+The preset uses the local `@paretools/git` binary:
+
+```text
+pare-git
+```
+
+The MCP Lab passes the repository path explicitly when calling read tools:
+
+```json
+{ "path": "/Users/kachadha/Documents/my project" }
 ```
 
 Expected workflow:

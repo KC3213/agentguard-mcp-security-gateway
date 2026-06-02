@@ -63,7 +63,7 @@ describe("policy engine", () => {
 
   it("classifies real filesystem read tools as governed tools", () => {
     const result = scanToolDescriptor({
-      name: "read_text_file",
+      name: "read_file",
       description: "Read complete contents of a file as text.",
       inputSchema: { path: "string" }
     });

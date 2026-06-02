@@ -18,6 +18,7 @@ const baseToolRisk: Record<string, number> = {
   directory_tree: 25,
   get_file_info: 20,
   search_files: 25,
+  read_file: 30,
   read_text_file: 30,
   read_media_file: 35,
   read_multiple_files: 40,
@@ -44,6 +45,7 @@ const filesystemReadTools = new Set([
   "directory_tree",
   "get_file_info",
   "search_files",
+  "read_file",
   "read_text_file",
   "read_media_file",
   "read_multiple_files"
