@@ -20,23 +20,51 @@ function emit(event: string, payload: unknown) {
 }
 
 export async function scanAndPersistTools(actor = "admin@agentguard.local", serverId?: string) {
-  const descriptors = await mcpClient.listTools();
-  const server = serverId
+  const existingServer = serverId ? await prisma.mcpServer.findUnique({ where: { id: serverId } }) : null;
+
+  if (serverId && !existingServer) {
+    throw new Error("MCP server not found");
+  }
+
+  const descriptors = await mcpClient.listTools(existingServer?.endpoint);
+  const server = existingServer
     ? await prisma.mcpServer.update({
-        where: { id: serverId },
+        where: { id: existingServer.id },
         data: { status: "ONLINE" }
       })
     : await prisma.mcpServer.upsert({
         where: { name: "Synthetic Company Tools MCP" },
         update: {
           description: "Local mock MCP server containing synthetic-only tools.",
-          endpoint: "stdio://apps/mock-mcp-server/src/index.ts",
+          endpoint: JSON.stringify(
+            {
+              preset: "agentguard-demo",
+              transport: "stdio",
+              command: "tsx",
+              args: ["apps/mock-mcp-server/src/index.ts"],
+              allowedDirectories: ["demo-data", ".agentguard-runtime"],
+              auditEnabled: true
+            },
+            null,
+            2
+          ),
           status: "ONLINE"
         },
         create: {
           name: "Synthetic Company Tools MCP",
           description: "Local mock MCP server containing synthetic-only tools.",
-          endpoint: "stdio://apps/mock-mcp-server/src/index.ts",
+          endpoint: JSON.stringify(
+            {
+              preset: "agentguard-demo",
+              transport: "stdio",
+              command: "tsx",
+              args: ["apps/mock-mcp-server/src/index.ts"],
+              allowedDirectories: ["demo-data", ".agentguard-runtime"],
+              auditEnabled: true
+            },
+            null,
+            2
+          ),
           status: "ONLINE"
         }
       });
@@ -88,7 +116,12 @@ export async function scanAndPersistTools(actor = "admin@agentguard.local", serv
 }
 
 async function executeAllowedTool(name: string, args: JsonRecord) {
-  return mcpClient.callTool(name, args);
+  const tool = await prisma.tool.findUnique({
+    where: { name },
+    include: { server: true }
+  });
+
+  return mcpClient.callTool(name, args, tool?.server.endpoint);
 }
 
 async function persistToolCall(input: {
