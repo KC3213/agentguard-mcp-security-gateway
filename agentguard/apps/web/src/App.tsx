@@ -15,6 +15,7 @@ import {
   Play,
   RefreshCw,
   Search,
+  ServerCog,
   Shield,
   SlidersHorizontal,
   Sparkles,
@@ -26,13 +27,25 @@ import {
 } from "lucide-react";
 import { io } from "socket.io-client";
 import { apiGet, apiPatch, apiPost, API_URL } from "./api";
-import type { AgentSession, Approval, AuditEvent, McpLabResult, Metrics, Policy, Tool, ToolCall } from "./types";
+import type {
+  AgentSession,
+  Approval,
+  AuditEvent,
+  McpLabResult,
+  McpServer,
+  McpServerScanResult,
+  Metrics,
+  Policy,
+  Tool,
+  ToolCall
+} from "./types";
 
-type View = "console" | "lab" | "tools" | "approvals" | "flight" | "audit" | "policies";
+type View = "console" | "lab" | "servers" | "tools" | "approvals" | "flight" | "audit" | "policies";
 
 const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: "console", label: "Agent Console", icon: TerminalSquare },
   { id: "lab", label: "MCP Lab", icon: Wrench },
+  { id: "servers", label: "MCP Control Plane", icon: ServerCog },
   { id: "tools", label: "Tool Registry", icon: Shield },
   { id: "approvals", label: "Approvals", icon: ClipboardCheck },
   { id: "flight", label: "Flight Recorder", icon: History },
@@ -77,6 +90,36 @@ const labExamples: Record<string, { purpose: string; arguments: Record<string, u
     }
   }
 };
+
+const mcpServerPresets = [
+  {
+    id: "agentguard-demo",
+    label: "AgentGuard Demo MCP",
+    description: "The local TypeScript MCP server already in this repo. Best first onboarding demo.",
+    name: "Synthetic Company Tools MCP",
+    command: "tsx",
+    args: ["apps/mock-mcp-server/src/index.ts"],
+    allowedDirectories: ["demo-data", ".agentguard-runtime"]
+  },
+  {
+    id: "filesystem",
+    label: "Filesystem MCP",
+    description: "Open-source filesystem server preset for the next integration step.",
+    name: "Open Source Filesystem MCP",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "demo-data", "docs"],
+    allowedDirectories: ["demo-data", "docs"]
+  },
+  {
+    id: "git",
+    label: "Git MCP",
+    description: "Open-source Git server preset for repo inspection workflows.",
+    name: "Open Source Git MCP",
+    command: "uvx",
+    args: ["mcp-server-git", "--repository", "/Users/kachadha/Documents/my project/agentguard"],
+    allowedDirectories: ["/Users/kachadha/Documents/my project/agentguard"]
+  }
+];
 
 const blockedLabExamples = [
   {
@@ -379,6 +422,7 @@ function sortAuditEvents(events: AuditEvent[], sort: AuditSort) {
 
 export function App() {
   const [view, setView] = useState<View>("console");
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
@@ -395,6 +439,13 @@ export function App() {
   const [labArguments, setLabArguments] = useState(JSON.stringify(labExamples.read_document.arguments, null, 2));
   const [labResult, setLabResult] = useState<McpLabResult | null>(null);
   const [labError, setLabError] = useState<string | null>(null);
+  const [serverPreset, setServerPreset] = useState("agentguard-demo");
+  const [serverName, setServerName] = useState(mcpServerPresets[0].name);
+  const [serverDescription, setServerDescription] = useState(mcpServerPresets[0].description);
+  const [serverCommand, setServerCommand] = useState(mcpServerPresets[0].command);
+  const [serverArgs, setServerArgs] = useState(mcpServerPresets[0].args.join("\n"));
+  const [serverAllowedDirs, setServerAllowedDirs] = useState(mcpServerPresets[0].allowedDirectories.join("\n"));
+  const [serverAuditEnabled, setServerAuditEnabled] = useState(true);
   const [auditQuery, setAuditQuery] = useState("");
   const [auditSort, setAuditSort] = useState<AuditSort>("newest");
   const [loading, setLoading] = useState(false);
@@ -402,8 +453,9 @@ export function App() {
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadAll = useCallback(async () => {
-    const [nextTools, nextSessions, nextCalls, nextApprovals, nextAudit, nextPolicies, nextMetrics] =
+    const [nextServers, nextTools, nextSessions, nextCalls, nextApprovals, nextAudit, nextPolicies, nextMetrics] =
       await Promise.all([
+        apiGet<McpServer[]>("/api/mcp-servers"),
         apiGet<Tool[]>("/api/tools"),
         apiGet<AgentSession[]>("/api/sessions"),
         apiGet<ToolCall[]>("/api/tool-calls"),
@@ -413,6 +465,7 @@ export function App() {
         apiGet<Metrics>("/api/metrics")
       ]);
 
+    setMcpServers(nextServers);
     setTools(nextTools);
     setSessions(nextSessions);
     setToolCalls(nextCalls);
@@ -588,6 +641,17 @@ export function App() {
     setLabError(null);
   }
 
+  function applyServerPreset(presetId: string) {
+    const preset = mcpServerPresets.find((item) => item.id === presetId) ?? mcpServerPresets[0];
+    setServerPreset(preset.id);
+    setServerName(preset.name);
+    setServerDescription(preset.description);
+    setServerCommand(preset.command);
+    setServerArgs(preset.args.join("\n"));
+    setServerAllowedDirs(preset.allowedDirectories.join("\n"));
+    setServerAuditEnabled(true);
+  }
+
   async function runLabTool() {
     setLoading(true);
     setLabError(null);
@@ -610,6 +674,52 @@ export function App() {
       setToast(message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onboardServer() {
+    setLoading(true);
+    try {
+      const server = await apiPost<McpServer>("/api/mcp-servers", {
+        name: serverName,
+        description: serverDescription,
+        preset: serverPreset,
+        transport: "stdio",
+        command: serverCommand,
+        args: serverArgs
+          .split("\n")
+          .map((value) => value.trim())
+          .filter(Boolean),
+        allowedDirectories: serverAllowedDirs
+          .split("\n")
+          .map((value) => value.trim())
+          .filter(Boolean),
+        auditEnabled: serverAuditEnabled,
+        actor: userEmail
+      });
+      await loadAll();
+      setToast(`${server.name} onboarded into AgentGuard`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "MCP server onboarding failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function testServer(server: McpServer) {
+    const updated = await apiPost<McpServer>(`/api/mcp-servers/${server.id}/test`, { actor: userEmail });
+    await loadAll();
+    setToast(`${updated.name} status: ${updated.status}`);
+  }
+
+  async function scanServer(server: McpServer) {
+    try {
+      const result = await apiPost<McpServerScanResult>(`/api/mcp-servers/${server.id}/scan`, { actor: userEmail });
+      setTools(result.tools);
+      await loadAll();
+      setToast(`${result.tools.length} tool(s) discovered from ${result.server.name}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "MCP server scan failed");
     }
   }
 
@@ -876,6 +986,141 @@ export function App() {
                     <span>Pick a tool, edit the JSON arguments, and run it through the same firewall used by the agent.</span>
                   </div>
                 )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {view === "servers" && (
+          <section className="panel server-panel">
+            <div className="section-title">
+              <div>
+                <h2>MCP Server Onboarding</h2>
+                <p className="muted">Register MCP servers, keep audit on, and discover tools through AgentGuard.</p>
+              </div>
+              <span className="count-pill">{mcpServers.length}</span>
+            </div>
+            <div className="server-control-layout">
+              <div className="server-onboard-form">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 1</span>
+                    <h2>Choose a server preset</h2>
+                  </div>
+                  <ServerCog size={22} />
+                </div>
+                <div className="preset-grid">
+                  {mcpServerPresets.map((preset) => (
+                    <button
+                      className={serverPreset === preset.id ? "preset-active" : ""}
+                      key={preset.id}
+                      onClick={() => applyServerPreset(preset.id)}
+                    >
+                      <strong>{preset.label}</strong>
+                      <span>{preset.description}</span>
+                    </button>
+                  ))}
+                </div>
+                <label htmlFor="server-name">Server name</label>
+                <input id="server-name" value={serverName} onChange={(event) => setServerName(event.target.value)} />
+                <label htmlFor="server-description">Description</label>
+                <textarea
+                  id="server-description"
+                  value={serverDescription}
+                  onChange={(event) => setServerDescription(event.target.value)}
+                />
+                <label htmlFor="server-command">Stdio command</label>
+                <input id="server-command" value={serverCommand} onChange={(event) => setServerCommand(event.target.value)} />
+                <label htmlFor="server-args">Arguments, one per line</label>
+                <textarea
+                  className="code-textarea server-code-textarea"
+                  id="server-args"
+                  value={serverArgs}
+                  onChange={(event) => setServerArgs(event.target.value)}
+                />
+                <label htmlFor="server-dirs">Allowed directories, one per line</label>
+                <textarea
+                  className="code-textarea server-code-textarea"
+                  id="server-dirs"
+                  value={serverAllowedDirs}
+                  onChange={(event) => setServerAllowedDirs(event.target.value)}
+                />
+                <label className="audit-toggle">
+                  <input
+                    checked={serverAuditEnabled}
+                    onChange={(event) => setServerAuditEnabled(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>Audit every tool discovery and server action</span>
+                </label>
+                <button className="primary-button" onClick={onboardServer} disabled={loading}>
+                  <ServerCog size={18} />
+                  Onboard MCP Server
+                </button>
+              </div>
+              <div className="server-registry">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 2</span>
+                    <h2>Operate onboarded servers</h2>
+                  </div>
+                  <Shield size={22} />
+                </div>
+                <div className="control-plane-flow">
+                  {["Onboard", "Test", "Discover", "Govern", "Audit"].map((step) => (
+                    <span key={step}>{step}</span>
+                  ))}
+                </div>
+                <div className="server-card-list">
+                  {mcpServers.map((server) => (
+                    <article className="server-card" key={server.id}>
+                      <div className="audit-title-row">
+                        <div>
+                          <span className="session-time">
+                            <ServerCog size={14} />
+                            {humanizeLabel(server.config.preset ?? "custom")} / {server.config.transport ?? "stdio"}
+                          </span>
+                          <strong>{server.name}</strong>
+                        </div>
+                        <span className={statusBadgeClass(server.status)}>{humanizeLabel(server.status)}</span>
+                      </div>
+                      <p>{server.description}</p>
+                      <div className="server-meta-grid">
+                        <div>
+                          <span>Command</span>
+                          <strong>{summarizeValue(server.config.command ?? server.endpoint, 80)}</strong>
+                        </div>
+                        <div>
+                          <span>Tools</span>
+                          <strong>{server.toolsCount}</strong>
+                        </div>
+                        <div>
+                          <span>Audit</span>
+                          <strong>{server.config.auditEnabled === false ? "Disabled" : "Enabled"}</strong>
+                        </div>
+                      </div>
+                      <div className="button-row">
+                        <button onClick={() => testServer(server)}>Test</button>
+                        <button onClick={() => scanServer(server)}>Discover Tools</button>
+                        <button onClick={() => setView("tools")}>Registry</button>
+                      </div>
+                      <details className="developer-payload">
+                        <summary>
+                          <Code2 size={15} />
+                          Server launch config
+                        </summary>
+                        <JsonBlock value={server.config} />
+                      </details>
+                    </article>
+                  ))}
+                  {!mcpServers.length ? (
+                    <div className="empty-state server-empty">
+                      <ServerCog size={28} />
+                      <strong>No MCP servers onboarded</strong>
+                      <span>Use the AgentGuard Demo MCP preset to register the existing local MCP server first.</span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </section>

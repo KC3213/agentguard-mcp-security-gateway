@@ -2,6 +2,24 @@
 
 This document explains what happens during one complete AgentGuard run.
 
+## Before The First Agent Run: MCP Server Onboarding
+
+In a real company, the agent should not discover random tools at runtime and immediately use them.
+
+AgentGuard adds a control-plane step before normal agent usage:
+
+```text
+1. Admin opens MCP Control Plane.
+2. Admin selects or configures an MCP server.
+3. Backend stores the server command, arguments, allowlisted folders, and audit setting.
+4. Admin tests/registers the server.
+5. Admin discovers tools from that server.
+6. Tool Registry stores each discovered tool with risk and status.
+7. Agent Console and MCP Lab can now use those tools through the gateway.
+```
+
+For the current prototype, the AgentGuard demo MCP server can be onboarded and scanned end-to-end. Filesystem and Git are included as future real-server presets so the control plane can show how external MCP servers would fit without using secrets.
+
 ## Happy Path
 
 Example prompt:

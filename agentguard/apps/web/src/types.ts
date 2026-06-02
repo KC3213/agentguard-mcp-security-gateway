@@ -13,6 +13,31 @@ export interface Tool {
   reasons: string[];
 }
 
+export interface McpServer {
+  id: string;
+  name: string;
+  description: string;
+  endpoint: string;
+  status: string;
+  config: {
+    preset?: string;
+    transport?: string;
+    command?: string;
+    args?: string[];
+    allowedDirectories?: string[];
+    auditEnabled?: boolean;
+  };
+  toolsCount: number;
+  tools?: Tool[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface McpServerScanResult {
+  server: McpServer;
+  tools: Tool[];
+}
+
 export interface ToolCall {
   id: string;
   sessionId: string | null;

@@ -10,10 +10,14 @@ export const firewallDecisionValues = [
 
 export const riskLevelValues = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export const toolStatusValues = ["DISCOVERED", "APPROVED", "REQUIRES_APPROVAL", "BLOCKED"] as const;
+export const mcpServerPresetValues = ["agentguard-demo", "filesystem", "git", "custom"] as const;
+export const mcpTransportValues = ["stdio"] as const;
 
 export type FirewallDecision = (typeof firewallDecisionValues)[number];
 export type RiskLevel = (typeof riskLevelValues)[number];
 export type ToolStatus = (typeof toolStatusValues)[number];
+export type McpServerPreset = (typeof mcpServerPresetValues)[number];
+export type McpTransport = (typeof mcpTransportValues)[number];
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -83,6 +87,22 @@ export const mcpLabRequestSchema = z.object({
   purpose: z.string().min(3).max(500).default("Manual MCP Lab tool call"),
   userEmail: z.string().email().default("employee@agentguard.local"),
   userRole: z.enum(["employee", "reviewer", "admin"]).default("employee")
+});
+
+export const mcpServerOnboardSchema = z.object({
+  name: z.string().min(3).max(120),
+  description: z.string().min(3).max(500),
+  preset: z.enum(mcpServerPresetValues).default("custom"),
+  transport: z.enum(mcpTransportValues).default("stdio"),
+  command: z.string().min(1).max(300),
+  args: z.array(z.string().max(500)).default([]),
+  allowedDirectories: z.array(z.string().max(500)).default([]),
+  auditEnabled: z.boolean().default(true),
+  actor: z.string().email().default("admin@agentguard.local")
+});
+
+export const mcpServerActionSchema = z.object({
+  actor: z.string().email().default("admin@agentguard.local")
 });
 
 export const updateToolStatusSchema = z.object({

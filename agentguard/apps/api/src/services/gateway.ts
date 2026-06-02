@@ -19,22 +19,27 @@ function emit(event: string, payload: unknown) {
   emitRealtime(event, payload);
 }
 
-export async function scanAndPersistTools(actor = "admin@agentguard.local") {
+export async function scanAndPersistTools(actor = "admin@agentguard.local", serverId?: string) {
   const descriptors = await mcpClient.listTools();
-  const server = await prisma.mcpServer.upsert({
-    where: { name: "Synthetic Company Tools MCP" },
-    update: {
-      description: "Local mock MCP server containing synthetic-only tools.",
-      endpoint: "stdio://apps/mock-mcp-server/src/index.ts",
-      status: "ONLINE"
-    },
-    create: {
-      name: "Synthetic Company Tools MCP",
-      description: "Local mock MCP server containing synthetic-only tools.",
-      endpoint: "stdio://apps/mock-mcp-server/src/index.ts",
-      status: "ONLINE"
-    }
-  });
+  const server = serverId
+    ? await prisma.mcpServer.update({
+        where: { id: serverId },
+        data: { status: "ONLINE" }
+      })
+    : await prisma.mcpServer.upsert({
+        where: { name: "Synthetic Company Tools MCP" },
+        update: {
+          description: "Local mock MCP server containing synthetic-only tools.",
+          endpoint: "stdio://apps/mock-mcp-server/src/index.ts",
+          status: "ONLINE"
+        },
+        create: {
+          name: "Synthetic Company Tools MCP",
+          description: "Local mock MCP server containing synthetic-only tools.",
+          endpoint: "stdio://apps/mock-mcp-server/src/index.ts",
+          status: "ONLINE"
+        }
+      });
 
   const scans = [];
 
@@ -75,7 +80,7 @@ export async function scanAndPersistTools(actor = "admin@agentguard.local") {
     eventType: "TOOLS_SCANNED",
     entityType: "Tool",
     actor,
-    data: { count: scans.length, tools: scans.map((tool) => tool.name) }
+    data: { serverId: server.id, serverName: server.name, count: scans.length, tools: scans.map((tool) => tool.name) }
   });
 
   emit("tools:scanned", { tools: scans, auditEvent: event });

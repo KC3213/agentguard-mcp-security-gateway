@@ -16,6 +16,48 @@ type ToolRecord = {
   updatedAt: Date;
 };
 
+type McpServerRecord = {
+  id: string;
+  name: string;
+  description: string;
+  endpoint: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  _count?: {
+    tools: number;
+  };
+  tools?: ToolRecord[];
+};
+
+function parseEndpointConfig(endpoint: string) {
+  try {
+    const parsed = JSON.parse(endpoint);
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return {
+      transport: endpoint.split("://")[0] || "stdio",
+      command: endpoint,
+      args: []
+    };
+  }
+
+  return {};
+}
+
+export function publicMcpServer(server: McpServerRecord) {
+  const config = parseEndpointConfig(server.endpoint);
+
+  return {
+    ...server,
+    config,
+    toolsCount: server._count?.tools ?? server.tools?.length ?? 0,
+    tools: server.tools?.map(publicTool)
+  };
+}
+
 export function publicTool(tool: ToolRecord) {
   return {
     ...tool,
@@ -95,4 +137,3 @@ export function publicSession(session: SessionRecord) {
     toolCalls: session.toolCalls?.map(publicToolCall)
   };
 }
-
