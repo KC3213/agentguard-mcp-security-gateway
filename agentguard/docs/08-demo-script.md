@@ -10,7 +10,7 @@ Say:
 This project is called AgentGuard. It is an MCP security gateway for AI agents. The goal is to show that once agents can call tools, we need runtime controls: tool scanning, risk scoring, human approval, and audit logs.
 ```
 
-## Step 1: Show Tool Registry
+## Step 1: Show MCP Server Onboarding
 
 Open:
 
@@ -18,12 +18,36 @@ Open:
 http://localhost:5173
 ```
 
-Go to **Tool Registry** and click **Scan**.
+Go to **MCP Control Plane**.
+
+Choose:
+
+```text
+AgentGuard Demo MCP
+```
+
+Then click:
+
+```text
+Onboard MCP Server
+Test
+Discover Tools
+```
 
 Say:
 
 ```text
-Before the agent can use tools, AgentGuard scans the MCP tool descriptors. It records each tool's name, description, input schema, base risk, trust score, and status.
+Before any agent can use a tool, I first onboard the MCP server. AgentGuard stores the server configuration, keeps audit logging enabled, tests/registers the server, and discovers its tools into the registry.
+```
+
+## Step 2: Show Tool Registry
+
+Go to **Tool Registry**.
+
+Say:
+
+```text
+After discovery, AgentGuard shows the MCP tool descriptors. It records each tool's name, description, input schema, base risk, trust score, and status.
 ```
 
 Point out:
@@ -32,7 +56,7 @@ Point out:
 - `query_database` is medium risk.
 - `send_email` requires approval.
 
-## Step 2: Show A Safe Action
+## Step 3: Show A Safe Action
 
 Go to **Agent Console**.
 
@@ -54,7 +78,7 @@ Expected result:
 create_ticket -> ALLOW -> EXECUTED
 ```
 
-## Step 3: Show SQL Blocking
+## Step 4: Show SQL Blocking
 
 Run:
 
@@ -75,7 +99,7 @@ query_database -> BLOCK
 Reason: SQL mutation command detected
 ```
 
-## Step 4: Show Human Approval
+## Step 5: Show Human Approval
 
 Run:
 
@@ -109,7 +133,7 @@ Say:
 This preserves the internal recipient but redacts customer contact details in the body.
 ```
 
-## Step 5: Show External Data Exfiltration Block
+## Step 6: Show External Data Exfiltration Block
 
 Run:
 
