@@ -2,6 +2,8 @@ import cors from "cors";
 import express from "express";
 import {
   approvalActionSchema,
+  mcpServerActionSchema,
+  mcpServerOnboardSchema,
   mcpLabRequestSchema,
   redactedApprovalSchema,
   sessionRequestSchema,
@@ -11,6 +13,7 @@ import { prisma } from "./prisma";
 import { parseJson, stringifyJson } from "./json";
 import { recordAuditEvent, verifyAuditChain } from "./services/audit";
 import { approveToolCall, rejectToolCall, runAgentSession, runMcpLabToolCall, scanAndPersistTools } from "./services/gateway";
+import { listMcpServers, onboardMcpServer, scanMcpServer, testMcpServerConnection } from "./services/mcpServers";
 import { publicApproval, publicSession, publicTool, publicToolCall } from "./services/mapper";
 
 export function createApp() {
@@ -77,6 +80,45 @@ export function createApp() {
       const actor = typeof req.body?.actor === "string" ? req.body.actor : "admin@agentguard.local";
       const tools = await scanAndPersistTools(actor);
       res.json(tools);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/mcp-servers", async (_req, res, next) => {
+    try {
+      const servers = await listMcpServers();
+      res.json(servers);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/mcp-servers", async (req, res, next) => {
+    try {
+      const input = mcpServerOnboardSchema.parse(req.body);
+      const server = await onboardMcpServer(input);
+      res.status(201).json(server);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/mcp-servers/:id/test", async (req, res, next) => {
+    try {
+      const input = mcpServerActionSchema.parse(req.body);
+      const server = await testMcpServerConnection(req.params.id, input.actor);
+      res.json(server);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/mcp-servers/:id/scan", async (req, res, next) => {
+    try {
+      const input = mcpServerActionSchema.parse(req.body);
+      const result = await scanMcpServer(req.params.id, input.actor);
+      res.json(result);
     } catch (error) {
       next(error);
     }
