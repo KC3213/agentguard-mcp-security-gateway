@@ -122,6 +122,15 @@ function workflowClass(state: WorkflowState) {
   return `workflow-step workflow-${state}`;
 }
 
+const workflowIcons: Record<string, typeof Activity> = {
+  Prompt: Bot,
+  Plan: Sparkles,
+  Policy: Shield,
+  MCP: Wrench,
+  Review: UserRound,
+  Audit: History
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -451,7 +460,6 @@ export function App() {
     () => approvals.filter((approval) => approval.status === "PENDING"),
     [approvals]
   );
-  const promptWordCount = useMemo(() => prompt.trim().split(/\s+/).filter(Boolean).length, [prompt]);
   const activeConsoleSession = useMemo(
     () => (activeSession?.prompt === prompt ? activeSession : null),
     [activeSession, prompt]
@@ -472,6 +480,15 @@ export function App() {
         : activeConsoleSession
           ? "done"
           : "draft";
+  const consoleDecisionText = loading
+    ? "Running gateway checks"
+    : activeConsoleSession?.status === "COMPLETED"
+      ? "Approved -- task complete"
+      : activeConsoleSession?.status === "BLOCKED"
+        ? "Blocked -- unsafe action stopped"
+        : activeConsoleSession?.status === "WAITING_FOR_APPROVAL"
+          ? "Approval required -- waiting for review"
+          : "Ready to inspect the next run";
   const workflowStages = useMemo(() => {
     const calls = activeConsoleSession?.toolCalls ?? [];
     const hasPrompt = prompt.trim().length > 0;
@@ -750,7 +767,7 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={view === "console" ? "app-shell console-shell" : "app-shell"}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -811,52 +828,46 @@ export function App() {
 
         {view === "console" && (
           <section className="panel console-panel">
-            <div className="console-playbar">
-              <div>
-                <span className="section-kicker">Prompt flow</span>
-                <h2>Run a task through the gateway</h2>
-              </div>
-              <div className={`console-run-pill console-run-${consoleRunTone}`}>
-                <span aria-hidden="true" />
-                <strong>{consoleRunLabel}</strong>
-                <small>{promptWordCount} word{promptWordCount === 1 ? "" : "s"}</small>
-              </div>
-            </div>
             <section className="workflow-rail console-workflow-rail" aria-label="AgentGuard workflow">
-              <div className="workflow-title">
-                <Workflow size={18} />
-                <span>Console workflow</span>
+              <div className="console-workflow-head">
+                <div className="workflow-title">
+                  <Workflow size={14} />
+                  <span>Console workflow</span>
+                </div>
+                <div className={`console-run-pill console-run-${consoleRunTone}`}>
+                  <span aria-hidden="true" />
+                  <strong>{consoleRunLabel}</strong>
+                </div>
               </div>
               <div className="workflow-steps">
-                {workflowStages.map((stage, index) => (
-                  <button key={stage.label} className={workflowClass(stage.state)} onClick={() => setView(stage.view)}>
-                    <span className="workflow-index">{index + 1}</span>
-                    <span>
-                      <strong>{stage.label}</strong>
-                      <small>{stage.detail}</small>
-                    </span>
-                    {index < workflowStages.length - 1 ? <ArrowRight size={15} className="workflow-arrow" /> : null}
-                  </button>
-                ))}
+                {workflowStages.map((stage, index) => {
+                  const StageIcon = workflowIcons[stage.label] ?? Workflow;
+                  return (
+                    <button key={stage.label} className={workflowClass(stage.state)} onClick={() => setView(stage.view)}>
+                      <span className="workflow-index">
+                        <StageIcon size={14} />
+                      </span>
+                      <span>
+                        <strong>{stage.label}</strong>
+                        <small>{stage.detail}</small>
+                      </span>
+                      {index < workflowStages.length - 1 ? <ArrowRight size={15} className="workflow-arrow" /> : null}
+                    </button>
+                  );
+                })}
               </div>
             </section>
             <div className="console-layout">
               <div className="console-input">
                 <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">Step 1</span>
-                    <h2>Choose an agent task</h2>
-                  </div>
-                  <Bot size={22} />
+                  <h2>
+                    <TerminalSquare size={15} />
+                    Choose an agent task
+                  </h2>
+                  <span className="step-badge">Step 1</span>
                 </div>
                 <label htmlFor="prompt">Prompt</label>
                 <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
-                <div className={prompt.trim() ? "prompt-motion prompt-motion-active" : "prompt-motion"} aria-label="Prompt activity">
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
                 <div className="scenario-grid">
                   {demoPrompts.map((item) => (
                     <button key={item} className={prompt === item ? "scenario-active" : ""} onClick={() => setPrompt(item)}>
@@ -871,17 +882,18 @@ export function App() {
               </div>
               <div className="console-output">
                 <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">Step 2</span>
-                    <h2>Inspect gateway decision</h2>
-                  </div>
-                  <Shield size={22} />
+                  <h2>
+                    <Shield size={15} />
+                    Gateway decision
+                  </h2>
+                  <span className="step-badge">Step 2</span>
+                </div>
+                <div className={`gateway-status-strip gateway-status-${consoleRunTone}`}>
+                  <CheckCircle2 size={15} />
+                  <span>{activeConsoleSession?.finalAnswer ?? consoleDecisionText}</span>
                 </div>
                 {activeConsoleSession ? (
-                  <>
-                    <p className="answer">{activeConsoleSession.finalAnswer}</p>
-                    <Timeline calls={activeConsoleSession.toolCalls ?? []} />
-                  </>
+                  <ConsoleToolTimeline calls={activeConsoleSession.toolCalls ?? []} />
                 ) : (
                   <div className="empty-state">
                     <Workflow size={28} />
@@ -1501,6 +1513,90 @@ export function App() {
           </section>
         )}
       </main>
+    </div>
+  );
+}
+
+function consoleToolTone(call: ToolCall) {
+  if (call.status.includes("BLOCK") || call.decision === "BLOCK") return "block";
+  if (call.decision === "REQUIRE_APPROVAL" || call.status.includes("PENDING")) return "warn";
+  return "ok";
+}
+
+function consoleTagClass(reason: string) {
+  const normalized = reason.toLowerCase();
+  if (normalized.includes("secret") || normalized.includes("blocked") || normalized.includes("mutation")) {
+    return "tag block";
+  }
+  if (normalized.includes("approval") || normalized.includes("review")) return "tag info";
+  if (normalized.includes("pii") || normalized.includes("external") || normalized.includes("risk")) return "tag warn";
+  return "tag ok";
+}
+
+function consoleDecisionLabel(call: ToolCall) {
+  if (call.decision === "ALLOW_WITH_LOG") return "Logged";
+  if (call.decision === "REQUIRE_APPROVAL") return "Review";
+  return humanizeLabel(call.decision);
+}
+
+function ConsoleToolTimeline({ calls }: { calls: ToolCall[] }) {
+  if (!calls.length) {
+    return (
+      <div className="empty-state console-output-empty">
+        <Workflow size={28} />
+        <strong>No tool calls recorded</strong>
+        <span>The gateway will show each MCP call here after the agent runs.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="console-tool-list">
+      {calls.map((call) => {
+        const tone = consoleToolTone(call);
+        return (
+          <article className="console-tool-row" key={call.id}>
+            <div className="console-tool-header">
+              <span className={`console-tool-dot console-tool-dot-${tone}`} />
+              <strong>{humanizeLabel(call.toolName)}</strong>
+              <time>{formatDateTime(call.createdAt)}</time>
+              <span className={`tag ${tone === "block" ? "block" : tone === "warn" ? "warn" : "info"}`}>
+                {consoleDecisionLabel(call)}
+              </span>
+            </div>
+            <p>{call.purpose}</p>
+            <div className="console-tool-detail">
+              <div className="console-tool-col">
+                <span>Input to MCP</span>
+                {formatToolArguments(call).map((row) => (
+                  <div className="console-field-row" key={row.label}>
+                    <span className="field-dot" />
+                    <strong>{row.label}</strong>
+                    <small>{row.value}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="console-tool-col console-tool-col-right">
+                <span>Gateway result</span>
+                {formatToolOutput(call).map((row) => (
+                  <div className="console-field-row" key={row.label}>
+                    <span className="field-dot field-dot-ok" />
+                    <strong>{row.label}</strong>
+                    <small>{row.value}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="console-tags">
+              {call.reasons.map((reason) => (
+                <span className={consoleTagClass(reason)} key={reason}>
+                  {reason}
+                </span>
+              ))}
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }

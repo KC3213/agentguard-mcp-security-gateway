@@ -123,9 +123,11 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByText("AgentGuard")).toBeInTheDocument();
-    expect(screen.getByText("Prompt flow")).toBeInTheDocument();
-    expect(screen.getByText("Run a task through the gateway")).toBeInTheDocument();
-    expect(screen.getByLabelText("Prompt activity")).toBeInTheDocument();
+    expect(screen.getByText("Console workflow")).toBeInTheDocument();
+    expect(screen.getByText("Choose an agent task")).toBeInTheDocument();
+    expect(screen.getByText("Gateway decision")).toBeInTheDocument();
+    expect(screen.getByText("Step 1")).toBeInTheDocument();
+    expect(screen.getByText("Step 2")).toBeInTheDocument();
     expect(screen.getByText("MCP Lab")).toBeInTheDocument();
     expect(screen.getByText("MCP Control Plane")).toBeInTheDocument();
     expect(screen.getByText("Tool Registry")).toBeInTheDocument();
