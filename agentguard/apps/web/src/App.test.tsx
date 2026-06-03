@@ -72,6 +72,23 @@ const demoAuditEvent = {
   createdAt: "2026-06-01T09:09:01.530Z"
 };
 
+const demoPolicies = [
+  {
+    id: "policy-1",
+    name: "Block secrets",
+    description: "Secrets, passwords, and API keys are blocked before tools execute.",
+    enabled: true,
+    severity: "critical"
+  },
+  {
+    id: "policy-2",
+    name: "Review external email",
+    description: "External recipients raise risk and may require human approval.",
+    enabled: false,
+    severity: "high"
+  }
+];
+
 const emptyResponse = (path: string) => {
   if (path.endsWith("/api/metrics")) return { sessions: 0, calls: 0, pendingApprovals: 0, blocked: 0 };
   return [];
@@ -81,6 +98,7 @@ const readableResponse = (path: string) => {
   if (path.endsWith("/api/sessions")) return [demoSession];
   if (path.endsWith("/api/tool-calls")) return demoSession.toolCalls;
   if (path.endsWith("/api/audit")) return [demoAuditEvent, previousAuditEvent];
+  if (path.endsWith("/api/policies")) return demoPolicies;
   if (path.endsWith("/api/metrics")) return { sessions: 1, calls: 1, pendingApprovals: 0, blocked: 0 };
   return [];
 };
@@ -105,6 +123,8 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByText("AgentGuard")).toBeInTheDocument();
+    expect(screen.getByText("MCP Lab")).toBeInTheDocument();
+    expect(screen.getByText("MCP Control Plane")).toBeInTheDocument();
     expect(screen.getByText("Tool Registry")).toBeInTheDocument();
     expect(screen.getByText("Flight Recorder")).toBeInTheDocument();
   });
@@ -129,6 +149,18 @@ describe("App", () => {
     expect(screen.getByText("Document path")).toBeInTheDocument();
     expect(screen.getByText("Developer payload")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: /MCP Lab/i }));
+
+    expect(await screen.findByText("MCP Tool Playground")).toBeInTheDocument();
+    expect(screen.getByLabelText("MCP tool")).toBeInTheDocument();
+    expect(screen.getByText("Run Through Gateway")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /MCP Control Plane/i }));
+
+    expect(await screen.findByText("MCP Server Onboarding")).toBeInTheDocument();
+    expect(screen.getByText("AgentGuard Demo MCP")).toBeInTheDocument();
+    expect(screen.getByText("Onboard MCP Server")).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: /Audit Log/i }));
 
     expect(await screen.findByText("Tamper-Evident Audit Trail")).toBeInTheDocument();
@@ -144,5 +176,33 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Audit sort"), { target: { value: "oldest" } });
 
     expect(screen.getByDisplayValue("Oldest first")).toBeInTheDocument();
+  });
+
+  it("renders editable policies in a vertical editor layout", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(readableResponse(String(input)))
+        })
+      )
+    );
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Policies/i }));
+
+    expect(await screen.findByText("Policy Editor")).toBeInTheDocument();
+    expect(screen.getByText("Add rule record")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add Policy/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("Editable policies")).toBeInTheDocument();
+    expect(screen.getByText("Block secrets")).toBeInTheDocument();
+    expect(screen.getByText("Review external email")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Edit/i })[0]);
+
+    expect(screen.getByDisplayValue("Block secrets")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Save Policy/i })).toBeInTheDocument();
   });
 });

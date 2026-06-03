@@ -60,5 +60,33 @@ describe("policy engine", () => {
     expect(result.status).toBe("REQUIRES_APPROVAL");
     expect(result.riskLevel).toBe("MEDIUM");
   });
-});
 
+  it("classifies real filesystem read tools as governed tools", () => {
+    const result = scanToolDescriptor({
+      name: "read_file",
+      description: "Read complete contents of a file as text.",
+      inputSchema: { path: "string" }
+    });
+
+    expect(result.status).toBe("APPROVED");
+    expect(result.reasons.join(" ")).toMatch(/Filesystem read tool/);
+  });
+
+  it("blocks real filesystem and git mutation tools", () => {
+    const fileResult = evaluateToolCall({
+      toolName: "write_file",
+      toolStatus: "APPROVED",
+      baseRisk: 90,
+      arguments: { path: "demo-data/new.txt", content: "change" }
+    });
+    const gitResult = evaluateToolCall({
+      toolName: "commit",
+      toolStatus: "APPROVED",
+      baseRisk: 90,
+      arguments: { message: "agent commit" }
+    });
+
+    expect(fileResult.decision).toBe("BLOCK");
+    expect(gitResult.decision).toBe("BLOCK");
+  });
+});

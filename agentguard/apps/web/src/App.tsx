@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -12,25 +13,48 @@ import {
   FileSearch,
   Hash,
   History,
+  Pencil,
   Play,
+  Plus,
   RefreshCw,
+  Save,
   Search,
+  ServerCog,
   Shield,
   SlidersHorizontal,
   Sparkles,
   TerminalSquare,
+  Trash2,
   UserRound,
+  Wrench,
   Workflow,
+  X,
   XCircle
 } from "lucide-react";
 import { io } from "socket.io-client";
-import { apiGet, apiPatch, apiPost, API_URL } from "./api";
-import type { AgentSession, Approval, AuditEvent, Metrics, Policy, Tool, ToolCall } from "./types";
+import { apiDelete, apiGet, apiPatch, apiPost, API_URL } from "./api";
+import { blockedLabExamples, demoPrompts, labExamples } from "./demoData";
+import { mcpServerPresets } from "./mcpPresets";
+import type {
+  AgentSession,
+  Approval,
+  AuditEvent,
+  McpLabResult,
+  McpServer,
+  McpServerScanResult,
+  Metrics,
+  Policy,
+  PolicySeverity,
+  Tool,
+  ToolCall
+} from "./types";
 
-type View = "console" | "tools" | "approvals" | "flight" | "audit" | "policies";
+type View = "console" | "lab" | "servers" | "tools" | "approvals" | "flight" | "audit" | "policies";
 
 const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: "console", label: "Agent Console", icon: TerminalSquare },
+  { id: "lab", label: "MCP Lab", icon: Wrench },
+  { id: "servers", label: "MCP Control Plane", icon: ServerCog },
   { id: "tools", label: "Tool Registry", icon: Shield },
   { id: "approvals", label: "Approvals", icon: ClipboardCheck },
   { id: "flight", label: "Flight Recorder", icon: History },
@@ -38,20 +62,23 @@ const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: "policies", label: "Policies", icon: SlidersHorizontal }
 ];
 
-const demoPrompts = [
-  "Create a normal onboarding documentation ticket",
-  "Read the public quarterly support report",
-  "Query customers with SELECT",
-  "Try DROP SQL on the customer table",
-  "Summarize complaints and email internally",
-  "Send fake customer data externally",
-  "Send an API key by email",
-  "Use an unknown tool"
-];
-
 type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
 type DetailRow = { label: string; value: string };
 type AuditSort = "newest" | "oldest" | "event-type" | "actor" | "hash";
+type PolicyFormState = {
+  name: string;
+  description: string;
+  severity: PolicySeverity;
+  enabled: boolean;
+};
+
+const policySeverityOptions = ["low", "medium", "high", "critical"] as const;
+const emptyPolicyForm = (): PolicyFormState => ({
+  name: "",
+  description: "",
+  severity: "medium",
+  enabled: true
+});
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
@@ -63,6 +90,10 @@ function riskClass(level: string) {
   if (level === "HIGH") return "badge badge-high";
   if (level === "MEDIUM") return "badge badge-medium";
   return "badge badge-low";
+}
+
+function severityBadgeClass(severity: string) {
+  return riskClass(severity.toUpperCase());
 }
 
 function decisionIcon(status: string) {
@@ -325,17 +356,32 @@ function sortAuditEvents(events: AuditEvent[], sort: AuditSort) {
 
 export function App() {
   const [view, setView] = useState<View>("console");
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
+  const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
+  const [policyForm, setPolicyForm] = useState<PolicyFormState>(() => emptyPolicyForm());
   const [metrics, setMetrics] = useState<Metrics>({ sessions: 0, calls: 0, pendingApprovals: 0, blocked: 0 });
   const [prompt, setPrompt] = useState(demoPrompts[0]);
   const [userRole, setUserRole] = useState<"employee" | "reviewer" | "admin">("employee");
   const [userEmail, setUserEmail] = useState("employee@agentguard.local");
   const [activeSession, setActiveSession] = useState<AgentSession | null>(null);
+  const [labToolName, setLabToolName] = useState("read_document");
+  const [labPurpose, setLabPurpose] = useState(labExamples.read_document.purpose);
+  const [labArguments, setLabArguments] = useState(JSON.stringify(labExamples.read_document.arguments, null, 2));
+  const [labResult, setLabResult] = useState<McpLabResult | null>(null);
+  const [labError, setLabError] = useState<string | null>(null);
+  const [serverPreset, setServerPreset] = useState("agentguard-demo");
+  const [serverName, setServerName] = useState(mcpServerPresets[0].name);
+  const [serverDescription, setServerDescription] = useState(mcpServerPresets[0].description);
+  const [serverCommand, setServerCommand] = useState(mcpServerPresets[0].command);
+  const [serverArgs, setServerArgs] = useState(mcpServerPresets[0].args.join("\n"));
+  const [serverAllowedDirs, setServerAllowedDirs] = useState(mcpServerPresets[0].allowedDirectories.join("\n"));
+  const [serverAuditEnabled, setServerAuditEnabled] = useState(true);
   const [auditQuery, setAuditQuery] = useState("");
   const [auditSort, setAuditSort] = useState<AuditSort>("newest");
   const [loading, setLoading] = useState(false);
@@ -343,8 +389,9 @@ export function App() {
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadAll = useCallback(async () => {
-    const [nextTools, nextSessions, nextCalls, nextApprovals, nextAudit, nextPolicies, nextMetrics] =
+    const [nextServers, nextTools, nextSessions, nextCalls, nextApprovals, nextAudit, nextPolicies, nextMetrics] =
       await Promise.all([
+        apiGet<McpServer[]>("/api/mcp-servers"),
         apiGet<Tool[]>("/api/tools"),
         apiGet<AgentSession[]>("/api/sessions"),
         apiGet<ToolCall[]>("/api/tool-calls"),
@@ -354,6 +401,7 @@ export function App() {
         apiGet<Metrics>("/api/metrics")
       ]);
 
+    setMcpServers(nextServers);
     setTools(nextTools);
     setSessions(nextSessions);
     setToolCalls(nextCalls);
@@ -451,6 +499,15 @@ export function App() {
   }, [activeSession, metrics.calls, pendingApprovals.length]);
   const selectedFlightSession = activeSession ?? sessions[0] ?? null;
   const selectedFlightCalls = selectedFlightSession?.toolCalls ?? toolCalls.slice(0, 8);
+  const selectedLabTool = useMemo(
+    () => tools.find((tool) => tool.name === labToolName) ?? null,
+    [labToolName, tools]
+  );
+  const labToolOptions = useMemo(() => {
+    const registeredNames = tools.map((tool) => tool.name);
+    const knownNames = Object.keys(labExamples);
+    return [...new Set([...registeredNames, ...knownNames])];
+  }, [tools]);
   const auditEventsByHash = useMemo(() => {
     return new Map(auditEvents.map((event) => [event.hash, event]));
   }, [auditEvents]);
@@ -462,6 +519,7 @@ export function App() {
 
     return sortAuditEvents(filteredEvents, auditSort);
   }, [auditEvents, auditQuery, auditSort]);
+  const activePolicyCount = useMemo(() => policies.filter((policy) => policy.enabled).length, [policies]);
 
   async function runSession() {
     setLoading(true);
@@ -503,6 +561,105 @@ export function App() {
     await loadAll();
   }
 
+  function loadLabExample(toolName: string) {
+    const example = labExamples[toolName];
+    setLabToolName(toolName);
+    setLabPurpose(example?.purpose ?? `MCP Lab: run ${toolName} through the gateway`);
+    setLabArguments(JSON.stringify(example?.arguments ?? {}, null, 2));
+    setLabResult(null);
+    setLabError(null);
+  }
+
+  function loadBlockedLabExample(example: (typeof blockedLabExamples)[number]) {
+    setLabToolName(example.toolName);
+    setLabPurpose(example.purpose);
+    setLabArguments(JSON.stringify(example.arguments, null, 2));
+    setLabResult(null);
+    setLabError(null);
+  }
+
+  function applyServerPreset(presetId: string) {
+    const preset = mcpServerPresets.find((item) => item.id === presetId) ?? mcpServerPresets[0];
+    setServerPreset(preset.id);
+    setServerName(preset.name);
+    setServerDescription(preset.description);
+    setServerCommand(preset.command);
+    setServerArgs(preset.args.join("\n"));
+    setServerAllowedDirs(preset.allowedDirectories.join("\n"));
+    setServerAuditEnabled(true);
+  }
+
+  async function runLabTool() {
+    setLoading(true);
+    setLabError(null);
+    setToast("Running MCP Lab tool call");
+    try {
+      const parsedArguments = JSON.parse(labArguments) as Record<string, unknown>;
+      const result = await apiPost<McpLabResult>("/api/mcp-lab/run", {
+        toolName: labToolName,
+        purpose: labPurpose,
+        arguments: parsedArguments,
+        userEmail,
+        userRole
+      });
+      setLabResult(result);
+      await loadAll();
+      setToast(result.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "MCP Lab run failed";
+      setLabError(message);
+      setToast(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onboardServer() {
+    setLoading(true);
+    try {
+      const server = await apiPost<McpServer>("/api/mcp-servers", {
+        name: serverName,
+        description: serverDescription,
+        preset: serverPreset,
+        transport: "stdio",
+        command: serverCommand,
+        args: serverArgs
+          .split("\n")
+          .map((value) => value.trim())
+          .filter(Boolean),
+        allowedDirectories: serverAllowedDirs
+          .split("\n")
+          .map((value) => value.trim())
+          .filter(Boolean),
+        auditEnabled: serverAuditEnabled,
+        actor: userEmail
+      });
+      await loadAll();
+      setToast(`${server.name} onboarded into AgentGuard`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "MCP server onboarding failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function testServer(server: McpServer) {
+    const updated = await apiPost<McpServer>(`/api/mcp-servers/${server.id}/test`, { actor: userEmail });
+    await loadAll();
+    setToast(`${updated.name} status: ${updated.status}`);
+  }
+
+  async function scanServer(server: McpServer) {
+    try {
+      const result = await apiPost<McpServerScanResult>(`/api/mcp-servers/${server.id}/scan`, { actor: userEmail });
+      setTools(result.tools);
+      await loadAll();
+      setToast(`${result.tools.length} tool(s) discovered from ${result.server.name}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "MCP server scan failed");
+    }
+  }
+
   async function reviewApproval(approval: Approval, action: "approve" | "reject" | "redact-approve") {
     const body =
       action === "redact-approve"
@@ -511,6 +668,63 @@ export function App() {
     await apiPost(`/api/approvals/${approval.id}/${action}`, body);
     await loadAll();
     setToast(`Approval ${action.replace("-", " ")} complete`);
+  }
+
+  function resetPolicyEditor() {
+    setEditingPolicyId(null);
+    setPolicyForm(emptyPolicyForm());
+  }
+
+  function editPolicy(policy: Policy) {
+    const severity = policySeverityOptions.includes(policy.severity as PolicySeverity)
+      ? (policy.severity as PolicySeverity)
+      : "medium";
+    setEditingPolicyId(policy.id);
+    setPolicyForm({
+      name: policy.name,
+      description: policy.description,
+      severity,
+      enabled: policy.enabled
+    });
+  }
+
+  async function savePolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      const body = { ...policyForm, actor: userEmail };
+      const policy = editingPolicyId
+        ? await apiPatch<Policy>(`/api/policies/${editingPolicyId}`, body)
+        : await apiPost<Policy>("/api/policies", body);
+      await loadAll();
+      resetPolicyEditor();
+      setToast(`${policy.name} ${editingPolicyId ? "updated" : "created"}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Policy save failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function togglePolicy(policy: Policy) {
+    const updated = await apiPatch<Policy>(`/api/policies/${policy.id}`, {
+      enabled: !policy.enabled,
+      actor: userEmail
+    });
+    await loadAll();
+    setToast(`${updated.name} ${updated.enabled ? "enabled" : "disabled"}`);
+  }
+
+  async function deletePolicy(policy: Policy) {
+    const confirmed = window.confirm(`Delete policy "${policy.name}"?`);
+    if (!confirmed) return;
+
+    await apiDelete(`/api/policies/${policy.id}`, { actor: userEmail });
+    if (editingPolicyId === policy.id) {
+      resetPolicyEditor();
+    }
+    await loadAll();
+    setToast(`${policy.name} deleted`);
   }
 
   return (
@@ -636,6 +850,271 @@ export function App() {
                     <span>Pick a scenario and run the agent to see policy checks, MCP calls, approvals, and audit events.</span>
                   </div>
                 )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {view === "lab" && (
+          <section className="panel lab-panel">
+            <div className="section-title">
+              <div>
+                <h2>MCP Tool Playground</h2>
+                <p className="muted">Call the mock MCP tools directly, but only through AgentGuard's gateway checks.</p>
+              </div>
+              <button className="secondary-button" onClick={scanTools} disabled={loading}>
+                <RefreshCw size={18} />
+                Scan MCP Tools
+              </button>
+            </div>
+            <div className="lab-layout">
+              <div className="lab-builder">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 1</span>
+                    <h2>Choose a tool call</h2>
+                  </div>
+                  <Wrench size={22} />
+                </div>
+                <label htmlFor="lab-tool">MCP tool</label>
+                <select id="lab-tool" value={labToolName} onChange={(event) => loadLabExample(event.target.value)}>
+                  {labToolOptions.map((toolName) => (
+                    <option key={toolName} value={toolName}>
+                      {toolName}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="lab-purpose">Purpose</label>
+                <input
+                  id="lab-purpose"
+                  value={labPurpose}
+                  onChange={(event) => setLabPurpose(event.target.value)}
+                  placeholder="Why is this tool being called?"
+                />
+                <label htmlFor="lab-arguments">Tool arguments as JSON</label>
+                <textarea
+                  className="code-textarea"
+                  id="lab-arguments"
+                  value={labArguments}
+                  onChange={(event) => setLabArguments(event.target.value)}
+                />
+                <button className="primary-button" onClick={runLabTool} disabled={loading}>
+                  {loading ? <Sparkles size={18} /> : <Play size={18} />}
+                  {loading ? "Running through gateway" : "Run Through Gateway"}
+                </button>
+                <div className="lab-example-row">
+                  {blockedLabExamples.map((example) => (
+                    <button key={example.label} onClick={() => loadBlockedLabExample(example)}>
+                      {example.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="lab-inspector">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 2</span>
+                    <h2>Inspect what happened</h2>
+                  </div>
+                  <Shield size={22} />
+                </div>
+                <div className="lab-tool-card">
+                  <div className="audit-title-row">
+                    <div>
+                      <span className="session-time">
+                        <Database size={14} />
+                        {selectedLabTool ? "Registered MCP tool" : "Tool not registered yet"}
+                      </span>
+                      <strong>{labToolName}</strong>
+                    </div>
+                    <span className={selectedLabTool ? statusBadgeClass(selectedLabTool.status) : "badge badge-critical"}>
+                      {selectedLabTool ? humanizeLabel(selectedLabTool.status) : "Unknown"}
+                    </span>
+                  </div>
+                  <p>{selectedLabTool?.description ?? "Scan tools first, or run it to see the gateway block unknown tools."}</p>
+                  {selectedLabTool ? (
+                    <div className="call-badges">
+                      <span className={riskClass(selectedLabTool.riskLevel)}>
+                        {selectedLabTool.riskLevel} / {selectedLabTool.riskScore}
+                      </span>
+                      <span className="badge badge-low">Trust {selectedLabTool.trustScore}</span>
+                    </div>
+                  ) : null}
+                  <details className="developer-payload">
+                    <summary>
+                      <Code2 size={15} />
+                      Tool schema
+                    </summary>
+                    <JsonBlock value={selectedLabTool?.inputSchema ?? { message: "No schema loaded" }} />
+                  </details>
+                </div>
+                {labError ? (
+                  <p className="lab-error">{labError}</p>
+                ) : labResult ? (
+                  <div className="lab-result-stack">
+                    <ReadablePayload
+                      title="Gateway decision"
+                      rows={[
+                        { label: "Decision", value: humanizeLabel(labResult.decision) },
+                        { label: "Status", value: humanizeLabel(labResult.status) },
+                        { label: "Risk", value: `${labResult.riskLevel} / ${labResult.riskScore}` },
+                        { label: "Message", value: labResult.message }
+                      ]}
+                    />
+                    {labResult.approval ? (
+                      <ReadablePayload
+                        title="Approval created"
+                        rows={[
+                          { label: "Approval id", value: labResult.approval.id },
+                          { label: "Status", value: humanizeLabel(labResult.approval.status) },
+                          { label: "Reviewer action", value: "Open Approvals to approve, reject, or redact" }
+                        ]}
+                      />
+                    ) : null}
+                    {labResult.toolCall ? <Timeline calls={[labResult.toolCall]} /> : null}
+                  </div>
+                ) : (
+                  <div className="empty-state lab-empty">
+                    <Wrench size={28} />
+                    <strong>No MCP Lab run yet</strong>
+                    <span>Pick a tool, edit the JSON arguments, and run it through the same firewall used by the agent.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {view === "servers" && (
+          <section className="panel server-panel">
+            <div className="section-title">
+              <div>
+                <h2>MCP Server Onboarding</h2>
+                <p className="muted">Register MCP servers, keep audit on, and discover tools through AgentGuard.</p>
+              </div>
+              <span className="count-pill">{mcpServers.length}</span>
+            </div>
+            <div className="server-control-layout">
+              <div className="server-onboard-form">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 1</span>
+                    <h2>Choose a server preset</h2>
+                  </div>
+                  <ServerCog size={22} />
+                </div>
+                <div className="preset-grid">
+                  {mcpServerPresets.map((preset) => (
+                    <button
+                      className={serverPreset === preset.id ? "preset-active" : ""}
+                      key={preset.id}
+                      onClick={() => applyServerPreset(preset.id)}
+                    >
+                      <strong>{preset.label}</strong>
+                      <span>{preset.description}</span>
+                    </button>
+                  ))}
+                </div>
+                <label htmlFor="server-name">Server name</label>
+                <input id="server-name" value={serverName} onChange={(event) => setServerName(event.target.value)} />
+                <label htmlFor="server-description">Description</label>
+                <textarea
+                  id="server-description"
+                  value={serverDescription}
+                  onChange={(event) => setServerDescription(event.target.value)}
+                />
+                <label htmlFor="server-command">Stdio command</label>
+                <input id="server-command" value={serverCommand} onChange={(event) => setServerCommand(event.target.value)} />
+                <label htmlFor="server-args">Arguments, one per line</label>
+                <textarea
+                  className="code-textarea server-code-textarea"
+                  id="server-args"
+                  value={serverArgs}
+                  onChange={(event) => setServerArgs(event.target.value)}
+                />
+                <label htmlFor="server-dirs">Allowed directories, one per line</label>
+                <textarea
+                  className="code-textarea server-code-textarea"
+                  id="server-dirs"
+                  value={serverAllowedDirs}
+                  onChange={(event) => setServerAllowedDirs(event.target.value)}
+                />
+                <label className="audit-toggle">
+                  <input
+                    checked={serverAuditEnabled}
+                    onChange={(event) => setServerAuditEnabled(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>Audit every tool discovery and server action</span>
+                </label>
+                <button className="primary-button" onClick={onboardServer} disabled={loading}>
+                  <ServerCog size={18} />
+                  Onboard MCP Server
+                </button>
+              </div>
+              <div className="server-registry">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Step 2</span>
+                    <h2>Operate onboarded servers</h2>
+                  </div>
+                  <Shield size={22} />
+                </div>
+                <div className="control-plane-flow">
+                  {["Onboard", "Test", "Discover", "Govern", "Audit"].map((step) => (
+                    <span key={step}>{step}</span>
+                  ))}
+                </div>
+                <div className="server-card-list">
+                  {mcpServers.map((server) => (
+                    <article className="server-card" key={server.id}>
+                      <div className="audit-title-row">
+                        <div>
+                          <span className="session-time">
+                            <ServerCog size={14} />
+                            {humanizeLabel(server.config.preset ?? "custom")} / {server.config.transport ?? "stdio"}
+                          </span>
+                          <strong>{server.name}</strong>
+                        </div>
+                        <span className={statusBadgeClass(server.status)}>{humanizeLabel(server.status)}</span>
+                      </div>
+                      <p>{server.description}</p>
+                      <div className="server-meta-grid">
+                        <div>
+                          <span>Command</span>
+                          <strong>{summarizeValue(server.config.command ?? server.endpoint, 80)}</strong>
+                        </div>
+                        <div>
+                          <span>Tools</span>
+                          <strong>{server.toolsCount}</strong>
+                        </div>
+                        <div>
+                          <span>Audit</span>
+                          <strong>{server.config.auditEnabled === false ? "Disabled" : "Enabled"}</strong>
+                        </div>
+                      </div>
+                      <div className="button-row">
+                        <button onClick={() => testServer(server)}>Test</button>
+                        <button onClick={() => scanServer(server)}>Discover Tools</button>
+                        <button onClick={() => setView("tools")}>Registry</button>
+                      </div>
+                      <details className="developer-payload">
+                        <summary>
+                          <Code2 size={15} />
+                          Server launch config
+                        </summary>
+                        <JsonBlock value={server.config} />
+                      </details>
+                    </article>
+                  ))}
+                  {!mcpServers.length ? (
+                    <div className="empty-state server-empty">
+                      <ServerCog size={28} />
+                      <strong>No MCP servers onboarded</strong>
+                      <span>Use the AgentGuard Demo MCP preset to register the existing local MCP server first.</span>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </section>
@@ -865,16 +1344,116 @@ export function App() {
 
         {view === "policies" && (
           <section className="panel">
-            <div className="policy-grid">
-              {policies.map((policy) => (
-                <article className="policy-card" key={policy.id}>
+            <div className="section-title">
+              <div>
+                <h2>Policy Editor</h2>
+                <p className="muted">
+                  Maintain governance records for the gateway. Runtime enforcement still uses the deterministic policy engine.
+                </p>
+              </div>
+              <span className="count-pill">
+                {activePolicyCount}/{policies.length} active
+              </span>
+            </div>
+            <div className="policy-editor-stack">
+              <form className="policy-editor-form" onSubmit={savePolicy}>
+                <div className="panel-heading">
                   <div>
-                    <strong>{policy.name}</strong>
-                    <span>{policy.severity}</span>
+                    <span className="section-kicker">{editingPolicyId ? "Editing" : "New policy"}</span>
+                    <h2>{editingPolicyId ? "Update rule record" : "Add rule record"}</h2>
                   </div>
-                  <p>{policy.description}</p>
-                </article>
-              ))}
+                  <SlidersHorizontal size={22} />
+                </div>
+                <div className="policy-form-grid">
+                  <label htmlFor="policy-name">Name</label>
+                  <input
+                    id="policy-name"
+                    maxLength={120}
+                    minLength={3}
+                    required
+                    value={policyForm.name}
+                    onChange={(event) => setPolicyForm((current) => ({ ...current, name: event.target.value }))}
+                  />
+                  <label htmlFor="policy-severity">Severity</label>
+                  <select
+                    id="policy-severity"
+                    value={policyForm.severity}
+                    onChange={(event) =>
+                      setPolicyForm((current) => ({ ...current, severity: event.target.value as PolicySeverity }))
+                    }
+                  >
+                    {policySeverityOptions.map((severity) => (
+                      <option key={severity} value={severity}>
+                        {humanizeLabel(severity)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label htmlFor="policy-description">Description</label>
+                <textarea
+                  id="policy-description"
+                  maxLength={800}
+                  minLength={8}
+                  required
+                  value={policyForm.description}
+                  onChange={(event) => setPolicyForm((current) => ({ ...current, description: event.target.value }))}
+                />
+                <label className="audit-toggle">
+                  <input
+                    checked={policyForm.enabled}
+                    onChange={(event) => setPolicyForm((current) => ({ ...current, enabled: event.target.checked }))}
+                    type="checkbox"
+                  />
+                  <span>Policy record is enabled</span>
+                </label>
+                <div className="button-row">
+                  <button className="primary-button" disabled={loading} type="submit">
+                    {editingPolicyId ? <Save size={18} /> : <Plus size={18} />}
+                    {editingPolicyId ? "Save Policy" : "Add Policy"}
+                  </button>
+                  {editingPolicyId ? (
+                    <button className="secondary-button" onClick={resetPolicyEditor} type="button">
+                      <X size={18} />
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+
+              <div className="policy-list" aria-label="Editable policies">
+                {policies.map((policy) => (
+                  <article className={policy.enabled ? "policy-card" : "policy-card policy-disabled"} key={policy.id}>
+                    <div className="policy-card-head">
+                      <div>
+                        <span className="section-kicker">{policy.enabled ? "Enabled" : "Disabled"}</span>
+                        <strong>{policy.name}</strong>
+                      </div>
+                      <span className={severityBadgeClass(policy.severity)}>{humanizeLabel(policy.severity)}</span>
+                    </div>
+                    <p>{policy.description}</p>
+                    <div className="policy-card-actions">
+                      <button onClick={() => editPolicy(policy)}>
+                        <Pencil size={16} />
+                        Edit
+                      </button>
+                      <button onClick={() => togglePolicy(policy)}>
+                        {policy.enabled ? "Disable" : "Enable"}
+                      </button>
+                      <button className="danger-button" onClick={() => deletePolicy(policy)}>
+                        <Trash2 size={16} />
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {!policies.length ? (
+                  <div className="empty-state">
+                    <SlidersHorizontal size={28} />
+                    <strong>No policies yet</strong>
+                    <span>Add the first policy record to document gateway behavior.</span>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </section>
         )}

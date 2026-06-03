@@ -12,20 +12,17 @@ Most beginner AI projects stop at "chat with your data." AgentGuard focuses on t
 
 - How MCP separates an AI application from external tools.
 - How a gateway can sit between an agent and MCP servers.
-- How to onboard MCP servers before their tools become available to agents.
 - How to scan MCP tool metadata before trusting a tool.
 - How to enforce runtime policy on every tool call.
 - How to detect risky inputs such as PII, secrets, SQL mutation, and path traversal.
 - How to pause high-risk actions for human approval.
 - How to keep a flight recorder of agent sessions, tool calls, decisions, and audit events.
-- How to manually test real MCP tool calls in the MCP Lab without bypassing the gateway.
 
 ## Architecture
 
 ```text
 React dashboard
   -> Node/Express AgentGuard API
-  -> MCP server onboarding + Tool Registry
   -> deterministic demo agent planner
   -> policy engine pre-check
   -> mock MCP server tools
@@ -102,22 +99,6 @@ Run these from the Agent Console:
 - Send an API key by email -> blocked.
 - Use an unknown tool -> blocked.
 
-Use the MCP Lab to manually test the same tool boundary:
-
-- `read_document` with `public_report.txt` -> allowed.
-- `query_database` with `SELECT` -> logged.
-- `query_database` with `DROP TABLE Customer` -> blocked.
-- `send_email` with an internal recipient -> approval required.
-- `send_email` with a fake password/API key in the body -> blocked.
-
-Use the MCP Control Plane to show server onboarding:
-
-- Choose `AgentGuard Demo MCP`.
-- Onboard the server with audit enabled.
-- Test/register the server.
-- Discover tools into the Tool Registry.
-- Open Audit Log and search for `MCP_SERVER_ONBOARDED` or `TOOLS_SCANNED`.
-
 ## Interview Pitch
 
 Short version:
@@ -145,17 +126,12 @@ Read the docs in this order:
 7. `docs/09-interview-prep.md` for answers you can say out loud.
 8. `docs/10-troubleshooting-journal.md` for real issues faced while building.
 9. `docs/11-end-to-end-workflow.md` for the complete workflow from prompt to audit log.
-10. `docs/12-mcp-lab.md` for the manual MCP tool playground workflow.
-11. `docs/13-mcp-control-plane.md` for MCP server onboarding and governance.
-12. `docs/14-real-mcp-integrations.md` for the Filesystem/Git MCP integration plan.
 
 ## Screenshots To Capture
 
 Run the app and capture these views for a resume/portfolio:
 
 - Agent Console after a safe ticket run.
-- MCP Lab after a blocked SQL or secret-email run.
-- MCP Control Plane after onboarding the AgentGuard demo server.
 - Approvals after the internal complaint email scenario.
 - Tool Registry after a scan.
 - Flight Recorder after several sessions.
@@ -165,7 +141,6 @@ Run the app and capture these views for a resume/portfolio:
 
 - The default planner is deterministic, not LLM-based.
 - The MCP tools are synthetic and local.
-- Filesystem and Git MCP are onboarding presets now; real adapter execution is a planned next branch.
 - Auth is represented by a role switcher for MVP speed.
 - The policy engine is rule-based; an LLM judge can be added later.
 - The audit hash chain is a demo control, not a complete compliance system.
@@ -177,7 +152,6 @@ Run the app and capture these views for a resume/portfolio:
 - OpenTelemetry tracing.
 - OPA/Rego or Cedar policy support.
 - MCP server descriptor diffing between scans.
-- Real open-source Filesystem and Git MCP adapters behind strict allowlists.
 - Exportable audit reports.
 - Sandboxed tool execution.
 - Per-user and per-tool permission scopes.

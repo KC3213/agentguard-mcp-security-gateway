@@ -3,6 +3,18 @@ import { createHash } from "node:crypto";
 import { policyRules, scanToolDescriptor } from "@agentguard/policy-engine";
 
 const prisma = new PrismaClient();
+const demoServerEndpoint = JSON.stringify(
+  {
+    preset: "agentguard-demo",
+    transport: "stdio",
+    command: "tsx",
+    args: ["apps/mock-mcp-server/src/index.ts"],
+    allowedDirectories: ["demo-data", ".agentguard-runtime"],
+    auditEnabled: true
+  },
+  null,
+  2
+);
 
 const descriptors = [
   {
@@ -88,13 +100,13 @@ async function main() {
     where: { name: "Synthetic Company Tools MCP" },
     update: {
       description: "Local mock MCP server containing synthetic-only tools.",
-      endpoint: "stdio://apps/mock-mcp-server/src/index.ts",
+      endpoint: demoServerEndpoint,
       status: "ONLINE"
     },
     create: {
       name: "Synthetic Company Tools MCP",
       description: "Local mock MCP server containing synthetic-only tools.",
-      endpoint: "stdio://apps/mock-mcp-server/src/index.ts",
+      endpoint: demoServerEndpoint,
       status: "ONLINE"
     }
   });

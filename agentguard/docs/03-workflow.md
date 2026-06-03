@@ -2,6 +2,24 @@
 
 This document explains what happens during one complete AgentGuard run.
 
+## Before The First Agent Run: MCP Server Onboarding
+
+In a real company, the agent should not discover random tools at runtime and immediately use them.
+
+AgentGuard adds a control-plane step before normal agent usage:
+
+```text
+1. Admin opens MCP Control Plane.
+2. Admin selects or configures an MCP server.
+3. Backend stores the server command, arguments, allowlisted folders, and audit setting.
+4. Admin tests/registers the server.
+5. Admin discovers tools from that server.
+6. Tool Registry stores each discovered tool with risk and status.
+7. Agent Console and MCP Lab can now use those tools through the gateway.
+```
+
+For the current prototype, the AgentGuard demo MCP server can be onboarded and scanned end-to-end. Filesystem and Git are included as future real-server presets so the control plane can show how external MCP servers would fit without using secrets.
+
 ## Happy Path
 
 Example prompt:
@@ -137,6 +155,36 @@ Session paused
 ```
 
 This timeline is what the Flight Recorder view is meant to explain.
+
+## MCP Lab Workflow
+
+The MCP Lab is a shorter workflow for testing one tool at a time.
+
+Instead of starting with a natural-language prompt, you start with a specific MCP tool and JSON arguments.
+
+Example:
+
+```text
+Tool: read_document
+Arguments: { "path": "public_report.txt" }
+```
+
+Flow:
+
+```text
+1. User opens MCP Lab.
+2. User selects one registered MCP tool.
+3. User edits the JSON arguments.
+4. Frontend calls POST /api/mcp-lab/run.
+5. Backend sends the proposed call to the same policy engine.
+6. If safe, the gateway calls the mock MCP server.
+7. If risky, the gateway blocks it or creates an approval.
+8. ToolCall is saved with decision, risk score, input, output, and reasons.
+9. AuditEvent is written with the hash chain.
+10. Dashboard shows the result in MCP Lab, Flight Recorder, and Audit Log.
+```
+
+This is useful in interviews because it proves the project has a working MCP server and not just an agent simulation.
 
 ## What To Say In An Interview
 

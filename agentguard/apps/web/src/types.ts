@@ -1,4 +1,6 @@
-import type { FirewallDecision, RiskLevel, ToolStatus } from "@agentguard/shared";
+import type { FirewallDecision, PolicySeverity, RiskLevel, ToolStatus } from "@agentguard/shared";
+
+export type { PolicySeverity };
 
 export interface Tool {
   id: string;
@@ -11,6 +13,31 @@ export interface Tool {
   riskLevel: RiskLevel;
   trustScore: number;
   reasons: string[];
+}
+
+export interface McpServer {
+  id: string;
+  name: string;
+  description: string;
+  endpoint: string;
+  status: string;
+  config: {
+    preset?: string;
+    transport?: string;
+    command?: string;
+    args?: string[];
+    allowedDirectories?: string[];
+    auditEnabled?: boolean;
+  };
+  toolsCount: number;
+  tools?: Tool[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface McpServerScanResult {
+  server: McpServer;
+  tools: Tool[];
 }
 
 export interface ToolCall {
@@ -71,7 +98,7 @@ export interface Policy {
   name: string;
   description: string;
   enabled: boolean;
-  severity: string;
+  severity: PolicySeverity;
 }
 
 export interface Metrics {
@@ -81,3 +108,15 @@ export interface Metrics {
   blocked: number;
 }
 
+export interface McpLabResult {
+  message: string;
+  decision: FirewallDecision;
+  riskScore: number;
+  riskLevel: RiskLevel;
+  reasons: string[];
+  status: string;
+  output?: unknown;
+  redactedArguments?: Record<string, unknown>;
+  toolCall?: ToolCall;
+  approval?: Approval;
+}

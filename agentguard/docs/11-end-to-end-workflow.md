@@ -7,7 +7,7 @@ Use this as your main mental model before explaining the project to an interview
 ## One-Line Summary
 
 ```text
-User asks the agent to do something -> agent plans tool calls -> AgentGuard checks each tool call -> safe calls execute through MCP -> risky calls are blocked or sent for approval -> everything is recorded.
+Admin onboards an MCP server -> tools are discovered and governed -> user asks the agent to do something -> agent plans tool calls -> AgentGuard checks each tool call -> safe calls execute through MCP -> risky calls are blocked or sent for approval -> everything is recorded.
 ```
 
 ## Big Picture Diagram
@@ -15,6 +15,9 @@ User asks the agent to do something -> agent plans tool calls -> AgentGuard chec
 ```mermaid
 flowchart LR
   User["User"] --> UI["React Dashboard"]
+  Admin["Admin"] --> ControlPlane["MCP Control Plane"]
+  ControlPlane --> Registry["Tool Registry"]
+  Registry --> API
   UI --> API["AgentGuard API"]
   API --> Planner["Demo Agent Planner"]
   Planner --> Gateway["AgentGuard Gateway"]
@@ -33,6 +36,34 @@ flowchart LR
 ```
 
 ## Step-By-Step Workflow
+
+## Step 0: Admin Onboards An MCP Server
+
+Before the user runs an agent task, an admin can open **MCP Control Plane** and onboard a server.
+
+For the working demo:
+
+```text
+Preset: AgentGuard Demo MCP
+Command: tsx
+Args: apps/mock-mcp-server/src/index.ts
+Allowed directories: demo-data, .agentguard-runtime
+Audit: enabled
+```
+
+The backend stores this server record and writes an audit event:
+
+```text
+MCP_SERVER_ONBOARDED
+```
+
+Then the admin tests/registers the server and discovers tools. The discovered tools appear in Tool Registry with risk scores and default statuses.
+
+Why this matters:
+
+```text
+In enterprise agent systems, the first question is not only "Is this tool call safe?" It is also "Who added this MCP server, what command runs it, and what tools did it expose?"
+```
 
 ## Step 1: User Enters A Prompt
 
@@ -411,7 +442,7 @@ The gateway blocks dangerous actions before MCP execution.
 
 Tool scanning happens before normal use.
 
-When you click **Scan** in Tool Registry:
+When you click **Discover Tools** in MCP Control Plane or **Scan** in Tool Registry:
 
 ```text
 1. AgentGuard lists MCP tools.
@@ -430,6 +461,8 @@ Why this matters:
 ```text
 You should not let an agent use an MCP tool just because a server exposes it. First discover it, classify it, and approve it.
 ```
+
+The control-plane version adds one more piece of evidence: the audit log can show which server was onboarded before those tools were discovered.
 
 ## What Happens If The Agent Tries Something Unsafe
 
@@ -477,7 +510,7 @@ The recipient is external and the content has sensitive fake customer data. In t
 Say:
 
 ```text
-AgentGuard starts when a user gives an agent a task. The backend planner turns the task into MCP tool calls, but the calls do not go directly to the MCP server. They pass through a gateway policy engine. The policy engine checks tool approval status, PII, secrets, SQL mutation, path traversal, and external recipients. Based on the risk score, the gateway allows, logs, blocks, or pauses for human approval. Every step is stored in a flight recorder and audit log so the organization can inspect what the agent tried to do.
+AgentGuard starts by governing MCP servers before agents use them. An admin onboards a server, enables audit logging, tests/registers it, and discovers its tools into the Tool Registry. Then, when a user gives an agent a task, the backend planner turns the task into MCP tool calls, but those calls do not go directly to the MCP server. They pass through a gateway policy engine. The policy engine checks tool approval status, PII, secrets, SQL mutation, path traversal, and external recipients. Based on the risk score, the gateway allows, logs, blocks, or pauses for human approval. Every step is stored in a flight recorder and audit log so the organization can inspect what server was added, what tool was called, what data was used, and why the gateway allowed or blocked it.
 ```
 
 ## What You Should Remember
@@ -486,9 +519,8 @@ If you remember only five things, remember these:
 
 ```text
 1. MCP gives agents a standard way to use tools.
-2. Tool-using agents need runtime controls.
-3. AgentGuard is the gateway between the agent and tools.
-4. The policy engine makes deterministic allow/block/approval decisions.
+2. MCP servers should be onboarded and audited before trust.
+3. Tool-using agents need runtime controls.
+4. AgentGuard is the gateway between the agent and tools.
 5. The flight recorder makes agent behavior explainable after the fact.
 ```
-

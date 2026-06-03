@@ -2,14 +2,21 @@ import cors from "cors";
 import express from "express";
 import {
   approvalActionSchema,
+  createPolicySchema,
+  mcpServerActionSchema,
+  mcpServerOnboardSchema,
+  mcpLabRequestSchema,
+  policyActionSchema,
   redactedApprovalSchema,
   sessionRequestSchema,
+  updatePolicySchema,
   updateToolStatusSchema
 } from "@agentguard/shared";
 import { prisma } from "./prisma";
 import { parseJson, stringifyJson } from "./json";
 import { recordAuditEvent, verifyAuditChain } from "./services/audit";
-import { approveToolCall, rejectToolCall, runAgentSession, scanAndPersistTools } from "./services/gateway";
+import { approveToolCall, rejectToolCall, runAgentSession, runMcpLabToolCall, scanAndPersistTools } from "./services/gateway";
+import { listMcpServers, onboardMcpServer, scanMcpServer, testMcpServerConnection } from "./services/mcpServers";
 import { publicApproval, publicSession, publicTool, publicToolCall } from "./services/mapper";
 
 export function createApp() {
@@ -81,6 +88,45 @@ export function createApp() {
     }
   });
 
+  app.get("/api/mcp-servers", async (_req, res, next) => {
+    try {
+      const servers = await listMcpServers();
+      res.json(servers);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/mcp-servers", async (req, res, next) => {
+    try {
+      const input = mcpServerOnboardSchema.parse(req.body);
+      const server = await onboardMcpServer(input);
+      res.status(201).json(server);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/mcp-servers/:id/test", async (req, res, next) => {
+    try {
+      const input = mcpServerActionSchema.parse(req.body);
+      const server = await testMcpServerConnection(req.params.id, input.actor);
+      res.json(server);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/mcp-servers/:id/scan", async (req, res, next) => {
+    try {
+      const input = mcpServerActionSchema.parse(req.body);
+      const result = await scanMcpServer(req.params.id, input.actor);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.patch("/api/tools/:id/status", async (req, res, next) => {
     try {
       const input = updateToolStatusSchema.parse(req.body);
@@ -107,6 +153,16 @@ export function createApp() {
     try {
       const calls = await prisma.toolCall.findMany({ orderBy: { createdAt: "desc" } });
       res.json(calls.map(publicToolCall));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/mcp-lab/run", async (req, res, next) => {
+    try {
+      const input = mcpLabRequestSchema.parse(req.body);
+      const result = await runMcpLabToolCall(input);
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -172,6 +228,78 @@ export function createApp() {
     }
   });
 
+  app.post("/api/policies", async (req, res, next) => {
+    try {
+      const input = createPolicySchema.parse(req.body);
+      const policy = await prisma.policy.create({
+        data: {
+          name: input.name,
+          description: input.description,
+          severity: input.severity,
+          enabled: input.enabled
+        }
+      });
+
+      await recordAuditEvent({
+        eventType: "POLICY_CREATED",
+        entityType: "Policy",
+        entityId: policy.id,
+        actor: input.actor,
+        data: { name: policy.name, severity: policy.severity, enabled: policy.enabled }
+      });
+
+      res.status(201).json(policy);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/policies/:id", async (req, res, next) => {
+    try {
+      const input = updatePolicySchema.parse(req.body);
+      const policy = await prisma.policy.update({
+        where: { id: req.params.id },
+        data: {
+          name: input.name,
+          description: input.description,
+          severity: input.severity,
+          enabled: input.enabled
+        }
+      });
+
+      await recordAuditEvent({
+        eventType: "POLICY_UPDATED",
+        entityType: "Policy",
+        entityId: policy.id,
+        actor: input.actor,
+        data: { name: policy.name, severity: policy.severity, enabled: policy.enabled }
+      });
+
+      res.json(policy);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/policies/:id", async (req, res, next) => {
+    try {
+      const input = policyActionSchema.parse(req.body);
+      const policy = await prisma.policy.delete({ where: { id: req.params.id } });
+
+      await recordAuditEvent({
+        eventType: "POLICY_DELETED",
+        entityType: "Policy",
+        entityId: policy.id,
+        actor: input.actor,
+        data: { name: policy.name, severity: policy.severity, enabled: policy.enabled }
+      });
+
+      res.json({ ok: true, policy });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/metrics", async (_req, res, next) => {
     try {
       const [sessions, calls, approvals, blocked] = await Promise.all([
@@ -197,4 +325,3 @@ export function createApp() {
 
   return app;
 }
-

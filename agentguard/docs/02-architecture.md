@@ -6,6 +6,7 @@ AgentGuard is designed like a small enterprise control plane for AI agents.
 User
   -> React dashboard
   -> Express API
+  -> MCP server registry
   -> deterministic demo planner
   -> AgentGuard policy engine
   -> MCP client
@@ -21,9 +22,11 @@ The important design decision is that the agent does not call tools directly. Th
 
 **React Dashboard**
 
-The dashboard gives six operational views:
+The dashboard gives seven operational views:
 
 - Agent Console
+- MCP Lab
+- MCP Control Plane
 - Tool Registry
 - Approvals
 - Flight Recorder
@@ -35,6 +38,21 @@ It is intentionally not a landing page. It behaves like an internal security or 
 **Express API**
 
 The API is the central gateway. It receives user prompts, creates sessions, asks the planner for tool calls, runs policy checks, calls MCP tools, and stores logs.
+
+**MCP Control Plane**
+
+The control plane is the onboarding layer for MCP servers.
+
+It stores:
+
+- Server name and description.
+- Stdio command and arguments.
+- Allowed demo directories.
+- Audit setting.
+- Current server status.
+- Discovered tool count.
+
+The important idea is that an MCP server is not trusted just because someone knows how to run it. AgentGuard records the server first, tests/registers it, discovers tools, and then lets the Tool Registry govern those tools.
 
 **Deterministic Demo Planner**
 
@@ -76,6 +94,8 @@ It checks:
 **MCP Client**
 
 The backend tries to connect to the mock MCP server using the TypeScript MCP SDK. If stdio is unavailable in local development, it falls back to equivalent local synthetic functions. That fallback is only for developer reliability; the project still includes a real MCP server implementation.
+
+For the control-plane MVP, the AgentGuard demo server can be scanned end-to-end. Filesystem and Git MCP servers are shown as next-step presets so the interview story can explain how real open-source MCP integrations would be governed without adding token or secret risk.
 
 **Mock MCP Server**
 

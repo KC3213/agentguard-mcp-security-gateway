@@ -10,10 +10,16 @@ export const firewallDecisionValues = [
 
 export const riskLevelValues = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export const toolStatusValues = ["DISCOVERED", "APPROVED", "REQUIRES_APPROVAL", "BLOCKED"] as const;
+export const mcpServerPresetValues = ["agentguard-demo", "filesystem", "git", "custom"] as const;
+export const mcpTransportValues = ["stdio"] as const;
+export const policySeverityValues = ["low", "medium", "high", "critical"] as const;
 
 export type FirewallDecision = (typeof firewallDecisionValues)[number];
 export type RiskLevel = (typeof riskLevelValues)[number];
 export type ToolStatus = (typeof toolStatusValues)[number];
+export type McpServerPreset = (typeof mcpServerPresetValues)[number];
+export type McpTransport = (typeof mcpTransportValues)[number];
+export type PolicySeverity = (typeof policySeverityValues)[number];
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -56,6 +62,14 @@ export interface SessionRequest {
   userRole: "employee" | "reviewer" | "admin";
 }
 
+export interface McpLabRequest {
+  toolName: string;
+  arguments: JsonRecord;
+  purpose: string;
+  userEmail: string;
+  userRole: "employee" | "reviewer" | "admin";
+}
+
 export interface SessionResponse {
   sessionId: string;
   status: "COMPLETED" | "WAITING_FOR_APPROVAL" | "BLOCKED";
@@ -69,8 +83,48 @@ export const sessionRequestSchema = z.object({
   userRole: z.enum(["employee", "reviewer", "admin"]).default("employee")
 });
 
+export const mcpLabRequestSchema = z.object({
+  toolName: z.string().min(1).max(100),
+  arguments: z.record(z.unknown()).default({}),
+  purpose: z.string().min(3).max(500).default("Manual MCP Lab tool call"),
+  userEmail: z.string().email().default("employee@agentguard.local"),
+  userRole: z.enum(["employee", "reviewer", "admin"]).default("employee")
+});
+
+export const mcpServerOnboardSchema = z.object({
+  name: z.string().min(3).max(120),
+  description: z.string().min(3).max(500),
+  preset: z.enum(mcpServerPresetValues).default("custom"),
+  transport: z.enum(mcpTransportValues).default("stdio"),
+  command: z.string().min(1).max(300),
+  args: z.array(z.string().max(500)).default([]),
+  allowedDirectories: z.array(z.string().max(500)).default([]),
+  auditEnabled: z.boolean().default(true),
+  actor: z.string().email().default("admin@agentguard.local")
+});
+
+export const mcpServerActionSchema = z.object({
+  actor: z.string().email().default("admin@agentguard.local")
+});
+
 export const updateToolStatusSchema = z.object({
   status: z.enum(toolStatusValues)
+});
+
+export const createPolicySchema = z.object({
+  name: z.string().min(3).max(120),
+  description: z.string().min(8).max(800),
+  severity: z.enum(policySeverityValues).default("medium"),
+  enabled: z.boolean().default(true),
+  actor: z.string().email().default("admin@agentguard.local")
+});
+
+export const updatePolicySchema = createPolicySchema.partial().extend({
+  actor: z.string().email().default("admin@agentguard.local")
+});
+
+export const policyActionSchema = z.object({
+  actor: z.string().email().default("admin@agentguard.local")
 });
 
 export const approvalActionSchema = z.object({
@@ -80,4 +134,3 @@ export const approvalActionSchema = z.object({
 export const redactedApprovalSchema = approvalActionSchema.extend({
   redactedArguments: z.record(z.unknown()).optional()
 });
-
