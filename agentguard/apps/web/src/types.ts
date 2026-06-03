@@ -1,4 +1,6 @@
-import type { FirewallDecision, RiskLevel, ToolStatus } from "@agentguard/shared";
+import type { FirewallDecision, PolicySeverity, RiskLevel, ToolStatus } from "@agentguard/shared";
+
+export type { PolicySeverity };
 
 export interface Tool {
   id: string;
@@ -96,7 +98,7 @@ export interface Policy {
   name: string;
   description: string;
   enabled: boolean;
-  severity: string;
+  severity: PolicySeverity;
 }
 
 export interface Metrics {

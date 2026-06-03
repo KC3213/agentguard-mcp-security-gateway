@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -12,21 +13,26 @@ import {
   FileSearch,
   Hash,
   History,
+  Pencil,
   Play,
+  Plus,
   RefreshCw,
+  Save,
   Search,
   ServerCog,
   Shield,
   SlidersHorizontal,
   Sparkles,
   TerminalSquare,
+  Trash2,
   UserRound,
   Wrench,
   Workflow,
+  X,
   XCircle
 } from "lucide-react";
 import { io } from "socket.io-client";
-import { apiGet, apiPatch, apiPost, API_URL } from "./api";
+import { apiDelete, apiGet, apiPatch, apiPost, API_URL } from "./api";
 import { blockedLabExamples, demoPrompts, labExamples } from "./demoData";
 import { mcpServerPresets } from "./mcpPresets";
 import type {
@@ -38,6 +44,7 @@ import type {
   McpServerScanResult,
   Metrics,
   Policy,
+  PolicySeverity,
   Tool,
   ToolCall
 } from "./types";
@@ -58,6 +65,20 @@ const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
 type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
 type DetailRow = { label: string; value: string };
 type AuditSort = "newest" | "oldest" | "event-type" | "actor" | "hash";
+type PolicyFormState = {
+  name: string;
+  description: string;
+  severity: PolicySeverity;
+  enabled: boolean;
+};
+
+const policySeverityOptions = ["low", "medium", "high", "critical"] as const;
+const emptyPolicyForm = (): PolicyFormState => ({
+  name: "",
+  description: "",
+  severity: "medium",
+  enabled: true
+});
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
@@ -69,6 +90,10 @@ function riskClass(level: string) {
   if (level === "HIGH") return "badge badge-high";
   if (level === "MEDIUM") return "badge badge-medium";
   return "badge badge-low";
+}
+
+function severityBadgeClass(severity: string) {
+  return riskClass(severity.toUpperCase());
 }
 
 function decisionIcon(status: string) {
@@ -338,6 +363,8 @@ export function App() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
+  const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null);
+  const [policyForm, setPolicyForm] = useState<PolicyFormState>(() => emptyPolicyForm());
   const [metrics, setMetrics] = useState<Metrics>({ sessions: 0, calls: 0, pendingApprovals: 0, blocked: 0 });
   const [prompt, setPrompt] = useState(demoPrompts[0]);
   const [userRole, setUserRole] = useState<"employee" | "reviewer" | "admin">("employee");
@@ -492,6 +519,7 @@ export function App() {
 
     return sortAuditEvents(filteredEvents, auditSort);
   }, [auditEvents, auditQuery, auditSort]);
+  const activePolicyCount = useMemo(() => policies.filter((policy) => policy.enabled).length, [policies]);
 
   async function runSession() {
     setLoading(true);
@@ -640,6 +668,63 @@ export function App() {
     await apiPost(`/api/approvals/${approval.id}/${action}`, body);
     await loadAll();
     setToast(`Approval ${action.replace("-", " ")} complete`);
+  }
+
+  function resetPolicyEditor() {
+    setEditingPolicyId(null);
+    setPolicyForm(emptyPolicyForm());
+  }
+
+  function editPolicy(policy: Policy) {
+    const severity = policySeverityOptions.includes(policy.severity as PolicySeverity)
+      ? (policy.severity as PolicySeverity)
+      : "medium";
+    setEditingPolicyId(policy.id);
+    setPolicyForm({
+      name: policy.name,
+      description: policy.description,
+      severity,
+      enabled: policy.enabled
+    });
+  }
+
+  async function savePolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      const body = { ...policyForm, actor: userEmail };
+      const policy = editingPolicyId
+        ? await apiPatch<Policy>(`/api/policies/${editingPolicyId}`, body)
+        : await apiPost<Policy>("/api/policies", body);
+      await loadAll();
+      resetPolicyEditor();
+      setToast(`${policy.name} ${editingPolicyId ? "updated" : "created"}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Policy save failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function togglePolicy(policy: Policy) {
+    const updated = await apiPatch<Policy>(`/api/policies/${policy.id}`, {
+      enabled: !policy.enabled,
+      actor: userEmail
+    });
+    await loadAll();
+    setToast(`${updated.name} ${updated.enabled ? "enabled" : "disabled"}`);
+  }
+
+  async function deletePolicy(policy: Policy) {
+    const confirmed = window.confirm(`Delete policy "${policy.name}"?`);
+    if (!confirmed) return;
+
+    await apiDelete(`/api/policies/${policy.id}`, { actor: userEmail });
+    if (editingPolicyId === policy.id) {
+      resetPolicyEditor();
+    }
+    await loadAll();
+    setToast(`${policy.name} deleted`);
   }
 
   return (
@@ -1259,16 +1344,116 @@ export function App() {
 
         {view === "policies" && (
           <section className="panel">
-            <div className="policy-grid">
-              {policies.map((policy) => (
-                <article className="policy-card" key={policy.id}>
+            <div className="section-title">
+              <div>
+                <h2>Policy Editor</h2>
+                <p className="muted">
+                  Maintain governance records for the gateway. Runtime enforcement still uses the deterministic policy engine.
+                </p>
+              </div>
+              <span className="count-pill">
+                {activePolicyCount}/{policies.length} active
+              </span>
+            </div>
+            <div className="policy-editor-stack">
+              <form className="policy-editor-form" onSubmit={savePolicy}>
+                <div className="panel-heading">
                   <div>
-                    <strong>{policy.name}</strong>
-                    <span>{policy.severity}</span>
+                    <span className="section-kicker">{editingPolicyId ? "Editing" : "New policy"}</span>
+                    <h2>{editingPolicyId ? "Update rule record" : "Add rule record"}</h2>
                   </div>
-                  <p>{policy.description}</p>
-                </article>
-              ))}
+                  <SlidersHorizontal size={22} />
+                </div>
+                <div className="policy-form-grid">
+                  <label htmlFor="policy-name">Name</label>
+                  <input
+                    id="policy-name"
+                    maxLength={120}
+                    minLength={3}
+                    required
+                    value={policyForm.name}
+                    onChange={(event) => setPolicyForm((current) => ({ ...current, name: event.target.value }))}
+                  />
+                  <label htmlFor="policy-severity">Severity</label>
+                  <select
+                    id="policy-severity"
+                    value={policyForm.severity}
+                    onChange={(event) =>
+                      setPolicyForm((current) => ({ ...current, severity: event.target.value as PolicySeverity }))
+                    }
+                  >
+                    {policySeverityOptions.map((severity) => (
+                      <option key={severity} value={severity}>
+                        {humanizeLabel(severity)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label htmlFor="policy-description">Description</label>
+                <textarea
+                  id="policy-description"
+                  maxLength={800}
+                  minLength={8}
+                  required
+                  value={policyForm.description}
+                  onChange={(event) => setPolicyForm((current) => ({ ...current, description: event.target.value }))}
+                />
+                <label className="audit-toggle">
+                  <input
+                    checked={policyForm.enabled}
+                    onChange={(event) => setPolicyForm((current) => ({ ...current, enabled: event.target.checked }))}
+                    type="checkbox"
+                  />
+                  <span>Policy record is enabled</span>
+                </label>
+                <div className="button-row">
+                  <button className="primary-button" disabled={loading} type="submit">
+                    {editingPolicyId ? <Save size={18} /> : <Plus size={18} />}
+                    {editingPolicyId ? "Save Policy" : "Add Policy"}
+                  </button>
+                  {editingPolicyId ? (
+                    <button className="secondary-button" onClick={resetPolicyEditor} type="button">
+                      <X size={18} />
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
+              </form>
+
+              <div className="policy-list" aria-label="Editable policies">
+                {policies.map((policy) => (
+                  <article className={policy.enabled ? "policy-card" : "policy-card policy-disabled"} key={policy.id}>
+                    <div className="policy-card-head">
+                      <div>
+                        <span className="section-kicker">{policy.enabled ? "Enabled" : "Disabled"}</span>
+                        <strong>{policy.name}</strong>
+                      </div>
+                      <span className={severityBadgeClass(policy.severity)}>{humanizeLabel(policy.severity)}</span>
+                    </div>
+                    <p>{policy.description}</p>
+                    <div className="policy-card-actions">
+                      <button onClick={() => editPolicy(policy)}>
+                        <Pencil size={16} />
+                        Edit
+                      </button>
+                      <button onClick={() => togglePolicy(policy)}>
+                        {policy.enabled ? "Disable" : "Enable"}
+                      </button>
+                      <button className="danger-button" onClick={() => deletePolicy(policy)}>
+                        <Trash2 size={16} />
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {!policies.length ? (
+                  <div className="empty-state">
+                    <SlidersHorizontal size={28} />
+                    <strong>No policies yet</strong>
+                    <span>Add the first policy record to document gateway behavior.</span>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </section>
         )}

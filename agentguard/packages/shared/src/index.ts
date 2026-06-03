@@ -12,12 +12,14 @@ export const riskLevelValues = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export const toolStatusValues = ["DISCOVERED", "APPROVED", "REQUIRES_APPROVAL", "BLOCKED"] as const;
 export const mcpServerPresetValues = ["agentguard-demo", "filesystem", "git", "custom"] as const;
 export const mcpTransportValues = ["stdio"] as const;
+export const policySeverityValues = ["low", "medium", "high", "critical"] as const;
 
 export type FirewallDecision = (typeof firewallDecisionValues)[number];
 export type RiskLevel = (typeof riskLevelValues)[number];
 export type ToolStatus = (typeof toolStatusValues)[number];
 export type McpServerPreset = (typeof mcpServerPresetValues)[number];
 export type McpTransport = (typeof mcpTransportValues)[number];
+export type PolicySeverity = (typeof policySeverityValues)[number];
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -107,6 +109,22 @@ export const mcpServerActionSchema = z.object({
 
 export const updateToolStatusSchema = z.object({
   status: z.enum(toolStatusValues)
+});
+
+export const createPolicySchema = z.object({
+  name: z.string().min(3).max(120),
+  description: z.string().min(8).max(800),
+  severity: z.enum(policySeverityValues).default("medium"),
+  enabled: z.boolean().default(true),
+  actor: z.string().email().default("admin@agentguard.local")
+});
+
+export const updatePolicySchema = createPolicySchema.partial().extend({
+  actor: z.string().email().default("admin@agentguard.local")
+});
+
+export const policyActionSchema = z.object({
+  actor: z.string().email().default("admin@agentguard.local")
 });
 
 export const approvalActionSchema = z.object({
