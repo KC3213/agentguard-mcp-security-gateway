@@ -183,7 +183,8 @@ input {
 .button-row,
 .timeline-head,
 .approval-head,
-.policy-card div,
+.policy-card-head,
+.policy-card-actions,
 .panel-heading,
 .workflow-title {
   display: flex;
@@ -738,6 +739,16 @@ input:focus {
   background: #161f2f;
 }
 
+.danger-button {
+  border-color: rgba(248, 113, 113, 0.34) !important;
+  color: #fecaca !important;
+}
+
+.danger-button:hover {
+  border-color: #f87171 !important;
+  box-shadow: 0 12px 26px rgba(248, 113, 113, 0.12) !important;
+}
+
 .icon-button {
   width: 42px;
   height: 42px;
@@ -832,38 +843,106 @@ td span {
   color: #fef3c7;
 }
 
-.approval-grid,
-.policy-grid {
+.approval-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
   gap: 14px;
 }
 
-.approval-card,
-.policy-card {
+.approval-card {
   padding: 14px;
 }
 
-.approval-head,
-.policy-card div {
+.approval-head {
   justify-content: space-between;
   gap: 10px;
 }
 
-.approval-head strong,
-.policy-card strong {
+.approval-head strong {
   color: #f8fafc;
 }
 
-.approval-head span,
-.policy-card span {
+.approval-head span {
   color: #facc15;
   font-weight: 800;
+}
+
+.policy-editor-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.policy-editor-form {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  padding: 14px;
+  background: #0c1321;
+}
+
+.policy-editor-form label {
+  display: block;
+  margin: 12px 0 7px;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.policy-editor-form input:not([type="checkbox"]),
+.policy-editor-form textarea,
+.policy-editor-form select {
+  width: 100%;
+}
+
+.policy-editor-form textarea {
+  min-height: 108px;
+}
+
+.policy-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.policy-list {
+  display: grid;
+  gap: 12px;
+}
+
+.policy-card {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  padding: 14px;
+  background: #0c1321;
+}
+
+.policy-disabled {
+  opacity: 0.72;
+}
+
+.policy-card-head {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.policy-card-head strong {
+  display: block;
+  color: #f8fafc;
+  overflow-wrap: anywhere;
 }
 
 .policy-card p {
   color: #cbd5e1;
   line-height: 1.55;
+}
+
+.policy-card-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.policy-card-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .flight-layout {

@@ -88,7 +88,9 @@ This is not a full compliance product, but it demonstrates the idea that agent a
 
 **Policies**
 
-Lists the active policy rules in plain English.
+Shows policy records vertically so they are easy to scan, edit, enable, disable, or delete.
+
+Important interview detail: in this prototype, the Policies page is a governance editor. It records the rules your team wants to manage and audits changes to those records. The runtime firewall still uses the deterministic policy engine in `packages/policy-engine`, which is safer for the MVP because enforcement remains predictable and testable.
 
 ## UI Design Choices
 

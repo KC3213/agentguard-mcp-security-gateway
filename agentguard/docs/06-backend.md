@@ -36,6 +36,9 @@ POST   /api/approvals/:id/reject
 POST   /api/approvals/:id/redact-approve
 GET    /api/audit
 GET    /api/policies
+POST   /api/policies
+PATCH  /api/policies/:id
+DELETE /api/policies/:id
 GET    /api/metrics
 ```
 

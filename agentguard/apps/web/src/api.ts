@@ -26,5 +26,14 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export { API_URL };
+export async function apiDelete<T>(path: string, body: unknown = {}): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json() as Promise<T>;
+}
 
+export { API_URL };
