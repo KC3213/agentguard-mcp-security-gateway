@@ -18,7 +18,6 @@ import { recordAuditEvent, verifyAuditChain } from "./services/audit";
 import { approveToolCall, rejectToolCall, runAgentSession, runMcpLabToolCall, scanAndPersistTools } from "./services/gateway";
 import { listMcpServers, onboardMcpServer, scanMcpServer, testMcpServerConnection } from "./services/mcpServers";
 import { publicApproval, publicSession, publicTool, publicToolCall } from "./services/mapper";
-
 export function createApp() {
   const app = express();
 
