@@ -451,37 +451,59 @@ export function App() {
     () => approvals.filter((approval) => approval.status === "PENDING"),
     [approvals]
   );
+  const promptWordCount = useMemo(() => prompt.trim().split(/\s+/).filter(Boolean).length, [prompt]);
+  const activeConsoleSession = useMemo(
+    () => (activeSession?.prompt === prompt ? activeSession : null),
+    [activeSession, prompt]
+  );
+  const consoleRunLabel = loading
+    ? "Running"
+    : activeConsoleSession
+      ? humanizeLabel(activeConsoleSession.status)
+      : prompt.trim()
+        ? "Draft ready"
+        : "Waiting";
+  const consoleRunTone = loading
+    ? "running"
+    : activeConsoleSession?.status === "BLOCKED"
+      ? "blocked"
+      : activeConsoleSession?.status === "WAITING_FOR_APPROVAL"
+        ? "waiting"
+        : activeConsoleSession
+          ? "done"
+          : "draft";
   const workflowStages = useMemo(() => {
-    const calls = activeSession?.toolCalls ?? [];
-    const hasSession = Boolean(activeSession);
-    const hasBlocked = activeSession?.status === "BLOCKED" || calls.some((call) => call.status.includes("BLOCK"));
-    const isWaiting = activeSession?.status === "WAITING_FOR_APPROVAL";
+    const calls = activeConsoleSession?.toolCalls ?? [];
+    const hasPrompt = prompt.trim().length > 0;
+    const hasSession = Boolean(activeConsoleSession);
+    const hasBlocked = activeConsoleSession?.status === "BLOCKED" || calls.some((call) => call.status.includes("BLOCK"));
+    const isWaiting = activeConsoleSession?.status === "WAITING_FOR_APPROVAL";
     const hasExecuted = calls.some((call) => call.status.includes("EXECUTED"));
 
     return [
       {
         label: "Prompt",
-        detail: hasSession ? "Request captured" : "Write or choose a task",
+        detail: loading ? "Request captured" : hasSession ? "Request captured" : hasPrompt ? "Draft ready" : "Write or choose a task",
         view: "console" as View,
-        state: hasSession ? "done" : "active"
+        state: loading || hasSession ? "done" : hasPrompt ? "active" : "idle"
       },
       {
         label: "Plan",
-        detail: hasSession ? `${activeSession?.planned.length ?? 0} tool call(s)` : "Planner is ready",
+        detail: loading ? "Planner is mapping tools" : hasSession ? `${activeConsoleSession?.planned.length ?? 0} tool call(s)` : "Planner is ready",
         view: "console" as View,
-        state: hasSession ? "done" : "idle"
+        state: loading ? "active" : hasSession ? "done" : hasPrompt ? "waiting" : "idle"
       },
       {
         label: "Policy",
-        detail: hasBlocked ? "Unsafe action caught" : hasSession ? "Risk checks applied" : "Waiting for a run",
+        detail: loading ? "Firewall is checking risk" : hasBlocked ? "Unsafe action caught" : hasSession ? "Risk checks applied" : "Waiting for a run",
         view: "tools" as View,
-        state: hasBlocked ? "blocked" : hasSession ? "done" : "idle"
+        state: loading ? "waiting" : hasBlocked ? "blocked" : hasSession ? "done" : "idle"
       },
       {
-        label: "Action",
-        detail: hasExecuted ? "MCP tool executed" : isWaiting ? "Paused safely" : "No tool output yet",
+        label: "MCP",
+        detail: loading ? "Tool call queued" : hasExecuted ? "MCP tool executed" : isWaiting ? "Paused safely" : "No tool output yet",
         view: "flight" as View,
-        state: hasExecuted ? "done" : isWaiting ? "waiting" : "idle"
+        state: loading ? "idle" : hasExecuted ? "done" : isWaiting ? "waiting" : "idle"
       },
       {
         label: "Review",
@@ -491,12 +513,12 @@ export function App() {
       },
       {
         label: "Audit",
-        detail: metrics.calls ? "Recorded in timeline" : "Audit trail ready",
+        detail: loading ? "Audit event pending" : hasSession ? "Recorded in timeline" : "Audit trail ready",
         view: "audit" as View,
-        state: metrics.calls ? "done" : "idle"
+        state: hasSession ? "done" : "idle"
       }
     ] satisfies Array<{ label: string; detail: string; view: View; state: WorkflowState }>;
-  }, [activeSession, metrics.calls, pendingApprovals.length]);
+  }, [activeConsoleSession, loading, pendingApprovals.length, prompt]);
   const selectedFlightSession = activeSession ?? sessions[0] ?? null;
   const selectedFlightCalls = selectedFlightSession?.toolCalls ?? toolCalls.slice(0, 8);
   const selectedLabTool = useMemo(
@@ -789,6 +811,17 @@ export function App() {
 
         {view === "console" && (
           <section className="panel console-panel">
+            <div className="console-playbar">
+              <div>
+                <span className="section-kicker">Prompt flow</span>
+                <h2>Run a task through the gateway</h2>
+              </div>
+              <div className={`console-run-pill console-run-${consoleRunTone}`}>
+                <span aria-hidden="true" />
+                <strong>{consoleRunLabel}</strong>
+                <small>{promptWordCount} word{promptWordCount === 1 ? "" : "s"}</small>
+              </div>
+            </div>
             <section className="workflow-rail console-workflow-rail" aria-label="AgentGuard workflow">
               <div className="workflow-title">
                 <Workflow size={18} />
@@ -818,6 +851,12 @@ export function App() {
                 </div>
                 <label htmlFor="prompt">Prompt</label>
                 <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+                <div className={prompt.trim() ? "prompt-motion prompt-motion-active" : "prompt-motion"} aria-label="Prompt activity">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
                 <div className="scenario-grid">
                   {demoPrompts.map((item) => (
                     <button key={item} className={prompt === item ? "scenario-active" : ""} onClick={() => setPrompt(item)}>
@@ -838,16 +877,20 @@ export function App() {
                   </div>
                   <Shield size={22} />
                 </div>
-                {activeSession ? (
+                {activeConsoleSession ? (
                   <>
-                    <p className="answer">{activeSession.finalAnswer}</p>
-                    <Timeline calls={activeSession.toolCalls ?? []} />
+                    <p className="answer">{activeConsoleSession.finalAnswer}</p>
+                    <Timeline calls={activeConsoleSession.toolCalls ?? []} />
                   </>
                 ) : (
                   <div className="empty-state">
                     <Workflow size={28} />
-                    <strong>No workflow run yet</strong>
-                    <span>Pick a scenario and run the agent to see policy checks, MCP calls, approvals, and audit events.</span>
+                    <strong>{activeSession ? "Prompt changed since last run" : "No workflow run yet"}</strong>
+                    <span>
+                      {activeSession
+                        ? "Run this prompt to refresh the flow and gateway decision."
+                        : "Pick a scenario and run the agent to see policy checks, MCP calls, approvals, and audit events."}
+                    </span>
                   </div>
                 )}
               </div>
