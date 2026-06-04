@@ -859,7 +859,8 @@ export function App() {
     setToast(`${policy.name} deleted`);
   }
 
-  const usesLightShell = view === "console" || view === "lab" || view === "servers" || view === "tools";
+  const usesLightShell =
+    view === "console" || view === "lab" || view === "servers" || view === "tools" || view === "approvals";
 
   return (
     <div className={usesLightShell ? "app-shell console-shell" : "app-shell"}>
@@ -1443,35 +1444,88 @@ export function App() {
         )}
 
         {view === "approvals" && (
-          <section className="panel">
+          <section className="panel approval-panel">
             <div className="section-title">
-              <h2>Pending Reviews</h2>
-              <span className="count-pill">{pendingApprovals.length}</span>
+              <div>
+                <h2>Pending Reviews</h2>
+                <p className="muted">Review raw tool arguments before approving, redacting, or rejecting risky agent actions.</p>
+              </div>
+              <div className="approval-title-actions">
+                <span className="count-pill">{pendingApprovals.length}</span>
+              </div>
+            </div>
+            <div className="approval-flow-strip" aria-label="Approvals workflow">
+              {["Open request", "Read raw args", "Check risk", "Decide action", "Audit outcome"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
             </div>
             <div className="approval-grid">
               {approvals.map((approval) => (
                 <article className="approval-card" key={approval.id}>
                   <div className="approval-head">
-                    <strong>{approval.toolCall?.toolName}</strong>
-                    <span>{approval.status}</span>
+                    <div>
+                      <span className="session-time">
+                        <ClipboardCheck size={14} />
+                        {formatDateTime(approval.createdAt)}
+                      </span>
+                      <strong>{humanizeLabel(approval.toolCall?.toolName ?? "Unknown tool")}</strong>
+                    </div>
+                    <span className={statusBadgeClass(approval.status)}>{humanizeLabel(approval.status)}</span>
                   </div>
+                  <div className="approval-meta-grid">
+                    <div>
+                      <span>Requested by</span>
+                      <strong>{approval.requestedBy}</strong>
+                    </div>
+                    <div>
+                      <span>Reviewed by</span>
+                      <strong>{approval.reviewedBy ?? "Not reviewed"}</strong>
+                    </div>
+                    <div>
+                      <span>Tool call</span>
+                      <strong>{approval.toolCall?.decision ? humanizeLabel(approval.toolCall.decision) : "Pending"}</strong>
+                    </div>
+                  </div>
+                  <p>{approval.toolCall?.purpose ?? "Review this tool call before it can continue."}</p>
+                  <span className="approval-json-title">Raw tool arguments</span>
                   <JsonBlock value={approval.rawArguments} />
+                  {approval.redactedArgs ? (
+                    <>
+                      <span className="approval-json-title">Redacted arguments</span>
+                      <JsonBlock value={approval.redactedArgs} />
+                    </>
+                  ) : null}
                   <div className="button-row">
                     <button disabled={approval.status !== "PENDING"} onClick={() => reviewApproval(approval, "approve")}>
                       Approve
                     </button>
                     <button
+                      className="approval-redact-action"
                       disabled={approval.status !== "PENDING"}
                       onClick={() => reviewApproval(approval, "redact-approve")}
                     >
                       Redact & Approve
                     </button>
-                    <button disabled={approval.status !== "PENDING"} onClick={() => reviewApproval(approval, "reject")}>
+                    <button
+                      className="approval-danger-action"
+                      disabled={approval.status !== "PENDING"}
+                      onClick={() => reviewApproval(approval, "reject")}
+                    >
                       Reject
                     </button>
                   </div>
                 </article>
               ))}
+              {!approvals.length ? (
+                <div className="empty-state approval-empty">
+                  <ClipboardCheck size={28} />
+                  <strong>No approvals yet</strong>
+                  <span>Run a risky workflow to create an approval request with raw tool arguments for review.</span>
+                </div>
+              ) : null}
             </div>
           </section>
         )}

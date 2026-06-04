@@ -4083,6 +4083,269 @@ th,
   font-size: 15px;
 }
 
+.approval-panel {
+  min-height: calc(100vh - 86px);
+  border: 0;
+  border-radius: 0;
+  padding: 22px 26px;
+  background: var(--console-cream);
+  color: var(--console-ink);
+  box-shadow: none;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+}
+
+.approval-panel .section-title {
+  margin-bottom: 16px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  background: var(--console-white);
+  color: var(--console-ink);
+}
+
+.approval-panel .section-title h2 {
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.approval-panel .section-title .muted {
+  margin: 5px 0 0;
+  color: var(--console-ink2);
+  font-size: 15px;
+}
+
+.approval-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.approval-panel .count-pill {
+  min-width: 46px;
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+}
+
+.approval-flow-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--console-white);
+}
+
+.approval-flow-strip span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  border-radius: 11px;
+  background: var(--console-cream);
+  color: var(--console-ink2);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.approval-flow-strip strong {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.approval-panel .approval-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.approval-panel .approval-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--console-white);
+}
+
+.approval-panel .approval-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--console-border2);
+}
+
+.approval-panel .approval-head {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.approval-panel .approval-head strong {
+  display: block;
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.approval-panel .approval-head .session-time {
+  color: var(--console-muted);
+  font-size: 13px;
+}
+
+.approval-panel .approval-head .session-time svg {
+  color: var(--console-amber);
+}
+
+.approval-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.approval-meta-grid div {
+  min-width: 0;
+  border: 1px solid var(--console-border);
+  border-radius: 10px;
+  padding: 11px;
+  background: var(--console-cream);
+}
+
+.approval-meta-grid span {
+  display: block;
+  color: var(--console-muted);
+  font-size: 12.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.approval-meta-grid strong {
+  display: block;
+  margin-top: 7px;
+  color: var(--console-ink);
+  font-size: 14.5px;
+  overflow-wrap: anywhere;
+}
+
+.approval-panel .approval-card > p {
+  margin: 0;
+  color: var(--console-ink2);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.approval-json-title {
+  display: block;
+  margin-bottom: -7px;
+  color: var(--console-muted);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.approval-panel .json-block {
+  max-height: 260px;
+  border-color: var(--console-border);
+  background: #fdfdfb;
+  color: var(--console-ink);
+  font-size: 13px;
+}
+
+.approval-panel .button-row {
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.approval-panel .button-row button {
+  border-color: var(--console-border);
+  border-radius: 10px;
+  background: var(--console-white);
+  color: var(--console-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.approval-panel .button-row button:hover {
+  transform: translateY(-1px);
+  border-color: var(--console-blue);
+  background: var(--console-blue-bg);
+  color: var(--console-blue-text);
+  box-shadow: none;
+}
+
+.approval-panel .button-row .approval-redact-action {
+  border-color: #eed8a8;
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+}
+
+.approval-panel .button-row .approval-danger-action {
+  border-color: #f4c5c0;
+  background: var(--console-red-bg);
+  color: #b91c1c;
+}
+
+.approval-panel .button-row button:disabled {
+  opacity: 0.48;
+}
+
+.approval-panel .badge-low {
+  background: var(--console-green-bg);
+  color: var(--console-green-text);
+}
+
+.approval-panel .badge-medium {
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+}
+
+.approval-panel .badge-high {
+  background: #fff2dc;
+  color: #9a4a00;
+}
+
+.approval-panel .badge-critical {
+  background: var(--console-red-bg);
+  color: #b91c1c;
+}
+
+.approval-empty {
+  grid-column: 1 / -1;
+  min-height: 340px;
+  border-color: var(--console-border);
+  background: #fdfdfb;
+  color: var(--console-muted);
+}
+
+.approval-empty strong {
+  color: var(--console-ink);
+  font-size: 18px;
+}
+
+.approval-empty svg {
+  color: var(--console-amber);
+}
+
+.approval-empty span {
+  color: var(--console-ink2);
+  font-size: 15px;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -4183,6 +4446,14 @@ button:disabled {
   .tool-flow-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .approval-panel .approval-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-flow-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 960px) {
@@ -4207,9 +4478,11 @@ button:disabled {
   .audit-toolbar,
   .call-summary-grid,
   .control-plane-flow,
+  .approval-meta-grid,
   .lab-example-row,
   .server-meta-grid,
   .summary-grid,
+  .tool-score-grid,
   .scenario-grid {
     grid-template-columns: 1fr;
   }
