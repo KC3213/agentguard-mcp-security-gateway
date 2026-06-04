@@ -5,20 +5,24 @@ import {
   AlertTriangle,
   ArrowRight,
   Bot,
+  ChevronRight,
   CheckCircle2,
   Clock,
   Code2,
   ClipboardCheck,
   Database,
   FileSearch,
+  FileText,
   Hash,
   History,
+  Mail,
   Pencil,
   Play,
   Plus,
   RefreshCw,
   Save,
   Search,
+  Send,
   ServerCog,
   Shield,
   SlidersHorizontal,
@@ -65,6 +69,15 @@ const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
 type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
 type DetailRow = { label: string; value: string };
 type AuditSort = "newest" | "oldest" | "event-type" | "actor" | "hash";
+type AgentTaskRisk = "standard" | "high";
+type AgentTaskCard = {
+  prompt: string;
+  title: string;
+  meta: string;
+  preview: string;
+  icon: typeof Activity;
+  risk: AgentTaskRisk;
+};
 type PolicyFormState = {
   name: string;
   description: string;
@@ -79,6 +92,73 @@ const emptyPolicyForm = (): PolicyFormState => ({
   severity: "medium",
   enabled: true
 });
+
+const agentTaskCards: AgentTaskCard[] = [
+  {
+    prompt: demoPrompts[0],
+    title: "Create onboarding ticket",
+    meta: "Creates a synthetic workflow ticket",
+    preview: "Agent will create a safe demo ticket through the MCP gateway.",
+    icon: ClipboardCheck,
+    risk: "standard"
+  },
+  {
+    prompt: demoPrompts[1],
+    title: "Read support report",
+    meta: "Reads a public synthetic report",
+    preview: "Agent will read an allowlisted document and show the gateway result.",
+    icon: FileText,
+    risk: "standard"
+  },
+  {
+    prompt: demoPrompts[2],
+    title: "Query customers",
+    meta: "Runs a read-only SELECT query",
+    preview: "Agent will query the synthetic customer database with read-only SQL.",
+    icon: Database,
+    risk: "standard"
+  },
+  {
+    prompt: demoPrompts[4],
+    title: "Summarize and email",
+    meta: "Tests PII detection and approval",
+    preview: "Agent will summarize complaint data and route risky email behavior through approval checks.",
+    icon: Mail,
+    risk: "standard"
+  },
+  {
+    prompt: demoPrompts[3],
+    title: "Try DROP SQL",
+    meta: "Blocked mutation command demo",
+    preview: "AgentGuard should block this SQL mutation before it reaches the database tool.",
+    icon: Trash2,
+    risk: "high"
+  },
+  {
+    prompt: demoPrompts[5],
+    title: "Send external data",
+    meta: "External recipient risk demo",
+    preview: "AgentGuard should raise or block risk when fake customer data leaves the trusted boundary.",
+    icon: Send,
+    risk: "high"
+  },
+  {
+    prompt: demoPrompts[6],
+    title: "Send API key",
+    meta: "Secret leakage block demo",
+    preview: "AgentGuard should detect credentials and block the unsafe tool call.",
+    icon: AlertTriangle,
+    risk: "high"
+  },
+  {
+    prompt: demoPrompts[7],
+    title: "Unknown tool",
+    meta: "Unregistered tool block demo",
+    preview: "AgentGuard should deny tools that were not discovered and approved.",
+    icon: Wrench,
+    risk: "high"
+  }
+];
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
@@ -460,6 +540,19 @@ export function App() {
     () => approvals.filter((approval) => approval.status === "PENDING"),
     [approvals]
   );
+  const selectedAgentTask = useMemo(
+    () => agentTaskCards.find((task) => task.prompt === prompt) ?? null,
+    [prompt]
+  );
+  const standardAgentTasks = useMemo(() => agentTaskCards.filter((task) => task.risk === "standard"), []);
+  const highRiskAgentTasks = useMemo(() => agentTaskCards.filter((task) => task.risk === "high"), []);
+  const promptReady = prompt.trim().length > 0;
+  const customPromptValue = selectedAgentTask ? "" : prompt;
+  const taskPreview = selectedAgentTask
+    ? selectedAgentTask.preview
+    : promptReady
+      ? "Custom task -- the deterministic agent will interpret this prompt and route tool calls through AgentGuard."
+      : "";
   const activeConsoleSession = useMemo(
     () => (activeSession?.prompt === prompt ? activeSession : null),
     [activeSession, prompt]
@@ -468,7 +561,7 @@ export function App() {
     ? "Running"
     : activeConsoleSession
       ? humanizeLabel(activeConsoleSession.status)
-      : prompt.trim()
+      : promptReady
         ? "Draft ready"
         : "Waiting";
   const consoleRunTone = loading
@@ -859,23 +952,99 @@ export function App() {
             </section>
             <div className="console-layout">
               <div className="console-input">
-                <div className="panel-heading">
-                  <h2>
-                    <TerminalSquare size={15} />
-                    Choose an agent task
-                  </h2>
+                <div className="panel-heading task-panel-heading">
+                  <div className="task-panel-copy">
+                    <span className="task-step-row">
+                      <span>1</span>
+                      Agent input
+                    </span>
+                    <h2>Choose an agent task</h2>
+                    <p>Pick a common workflow, try a risky demo, or write your own prompt.</p>
+                  </div>
                   <span className="step-badge">Step 1</span>
                 </div>
-                <label htmlFor="prompt">Prompt</label>
-                <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
-                <div className="scenario-grid">
-                  {demoPrompts.map((item) => (
-                    <button key={item} className={prompt === item ? "scenario-active" : ""} onClick={() => setPrompt(item)}>
-                      {item}
+                <div className="console-task-body">
+                  <span className="task-section-label">Recommended tasks</span>
+                  <div className="agent-task-grid">
+                    {standardAgentTasks.map((task) => {
+                      const Icon = task.icon;
+                      const selected = prompt === task.prompt;
+                      return (
+                        <button
+                          className={selected ? "agent-task-card selected" : "agent-task-card"}
+                          key={task.prompt}
+                          onClick={() => setPrompt(task.prompt)}
+                          aria-pressed={selected}
+                          type="button"
+                        >
+                          <span className="task-icon-box">
+                            <Icon size={17} />
+                          </span>
+                          <span className="task-copy">
+                            <strong>{task.title}</strong>
+                            <small>{task.meta}</small>
+                          </span>
+                          <ChevronRight className="task-chevron" size={15} />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="divider-label">High-risk demos</div>
+
+                  <div className="agent-task-grid">
+                    {highRiskAgentTasks.map((task) => {
+                      const Icon = task.icon;
+                      const selected = prompt === task.prompt;
+                      return (
+                        <button
+                          className={selected ? "agent-task-card danger selected" : "agent-task-card danger"}
+                          key={task.prompt}
+                          onClick={() => setPrompt(task.prompt)}
+                          aria-pressed={selected}
+                          type="button"
+                        >
+                          <span className="task-icon-box">
+                            <Icon size={17} />
+                          </span>
+                          <span className="task-copy">
+                            <strong>{task.title}</strong>
+                            <small>{task.meta}</small>
+                          </span>
+                          <span className="risk-badge">Blocked</span>
+                          <ChevronRight className="task-chevron" size={15} />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="divider-label">Or write your own</div>
+
+                  <div className="custom-prompt-wrap">
+                    <textarea
+                      id="prompt"
+                      placeholder="Example: Summarize support tickets and create a follow-up task"
+                      value={customPromptValue}
+                      onChange={(event) => setPrompt(event.target.value)}
+                    />
+                    <button
+                      aria-label="Clear custom prompt"
+                      className={customPromptValue.trim().length > 0 ? "clear-prompt show" : "clear-prompt"}
+                      onClick={() => setPrompt("")}
+                      type="button"
+                    >
+                      <X size={15} />
                     </button>
-                  ))}
+                  </div>
+
+                  {taskPreview ? (
+                    <div className="selected-preview">
+                      <Sparkles size={16} />
+                      <span>{taskPreview}</span>
+                    </div>
+                  ) : null}
                 </div>
-                <button className="primary-button" onClick={runSession} disabled={loading}>
+                <button className="primary-button" onClick={runSession} disabled={loading || !promptReady}>
                   {loading ? <Sparkles size={18} /> : <Play size={18} />}
                   {loading ? "Running workflow" : "Run Agent"}
                 </button>
