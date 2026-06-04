@@ -4895,6 +4895,357 @@ th,
   color: var(--console-red);
 }
 
+.policy-panel {
+  min-height: calc(100vh - 86px);
+  border: 0;
+  border-radius: 0;
+  padding: 22px 26px;
+  background: var(--console-cream);
+  color: var(--console-ink);
+  box-shadow: none;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+}
+
+.policy-panel .section-title {
+  margin-bottom: 16px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  background: var(--console-white);
+  color: var(--console-ink);
+}
+
+.policy-panel .section-title h2 {
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.policy-panel .section-title .muted {
+  margin: 5px 0 0;
+  color: var(--console-ink2);
+  font-size: 15px;
+}
+
+.policy-panel .count-pill {
+  min-width: 86px;
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+}
+
+.policy-flow-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--console-white);
+}
+
+.policy-flow-strip span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  border-radius: 11px;
+  background: var(--console-cream);
+  color: var(--console-ink2);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.policy-flow-strip strong {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.policy-panel .policy-editor-stack {
+  gap: 16px;
+}
+
+.policy-panel .policy-editor-form {
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--console-white);
+  box-shadow: none;
+}
+
+.policy-panel .panel-heading {
+  align-items: flex-start;
+  min-height: 86px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--console-border);
+}
+
+.policy-panel .panel-heading h2 {
+  margin: 0;
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.policy-panel .panel-heading svg {
+  color: var(--console-muted);
+}
+
+.policy-panel .section-kicker {
+  color: var(--console-muted);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+.policy-panel .policy-editor-form > label,
+.policy-panel .policy-editor-form > textarea,
+.policy-panel .policy-editor-form > .audit-toggle,
+.policy-panel .policy-editor-form > .button-row,
+.policy-panel .policy-form-grid {
+  margin-left: 22px;
+  margin-right: 22px;
+}
+
+.policy-panel .policy-form-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  margin-top: 18px;
+}
+
+.policy-panel .policy-editor-form label {
+  margin-top: 18px;
+  margin-bottom: 8px;
+  color: var(--console-muted);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.policy-panel .policy-editor-form input:not([type="checkbox"]),
+.policy-panel .policy-editor-form textarea,
+.policy-panel .policy-editor-form select {
+  width: 100%;
+  border: 1.5px solid var(--console-border);
+  border-radius: 10px;
+  background: var(--console-cream);
+  color: var(--console-ink);
+  padding: 12px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.policy-panel .policy-editor-form input:not([type="checkbox"]):focus,
+.policy-panel .policy-editor-form textarea:focus,
+.policy-panel .policy-editor-form select:focus {
+  border-color: var(--console-amber);
+  background: var(--console-white);
+  box-shadow: none;
+}
+
+.policy-panel .policy-editor-form textarea {
+  min-height: 130px;
+}
+
+.policy-panel .audit-toggle {
+  margin-top: 18px;
+  border: 1.5px solid var(--console-border);
+  border-radius: 11px;
+  padding: 12px;
+  background: var(--console-cream);
+}
+
+.policy-panel .audit-toggle input {
+  accent-color: var(--console-amber);
+}
+
+.policy-panel .audit-toggle span {
+  color: var(--console-ink2);
+  font-size: 15px;
+}
+
+.policy-panel .button-row {
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  margin-bottom: 22px;
+}
+
+.policy-panel .primary-button,
+.policy-panel .secondary-button,
+.policy-panel .button-row button {
+  min-height: 46px;
+  border-color: var(--console-border);
+  border-radius: 10px;
+  background: var(--console-white);
+  color: var(--console-ink);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.policy-panel .primary-button {
+  border-color: transparent;
+  background: var(--console-ink);
+  color: var(--console-white);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+}
+
+.policy-panel .secondary-button:hover,
+.policy-panel .button-row button:hover {
+  transform: translateY(-1px);
+  border-color: var(--console-amber);
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+  box-shadow: none;
+}
+
+.policy-panel .primary-button:hover {
+  transform: translateY(-1px);
+  background: #2a2a2a;
+  box-shadow: none;
+}
+
+.policy-panel .danger-button {
+  border-color: #f4c5c0 !important;
+  background: var(--console-red-bg) !important;
+  color: #b91c1c !important;
+}
+
+.policy-panel .danger-button:hover {
+  border-color: var(--console-red) !important;
+  background: #fff5f4 !important;
+  box-shadow: none !important;
+}
+
+.policy-panel .policy-list {
+  gap: 12px;
+}
+
+.policy-panel .policy-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--console-white);
+  box-shadow: none;
+}
+
+.policy-panel .policy-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--console-border2);
+}
+
+.policy-panel .policy-disabled {
+  background: #fdfdfb;
+  opacity: 1;
+}
+
+.policy-panel .policy-disabled .policy-card-head,
+.policy-panel .policy-disabled p {
+  opacity: 0.68;
+}
+
+.policy-panel .policy-card-head {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.policy-panel .policy-card-head strong {
+  display: block;
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.policy-panel .policy-card p {
+  margin: 0;
+  color: var(--console-ink2);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.policy-panel .policy-card-actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.policy-panel .policy-card-actions button {
+  border-color: var(--console-border);
+  border-radius: 10px;
+  background: var(--console-white);
+  color: var(--console-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.policy-panel .policy-card-actions button:hover {
+  transform: translateY(-1px);
+  border-color: var(--console-amber);
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+  box-shadow: none;
+}
+
+.policy-panel .badge-low {
+  background: var(--console-green-bg);
+  color: var(--console-green-text);
+}
+
+.policy-panel .badge-medium {
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+}
+
+.policy-panel .badge-high {
+  background: #fff2dc;
+  color: #9a4a00;
+}
+
+.policy-panel .badge-critical {
+  background: var(--console-red-bg);
+  color: #b91c1c;
+}
+
+.policy-panel .empty-state {
+  min-height: 300px;
+  border-color: var(--console-border);
+  background: #fdfdfb;
+  color: var(--console-muted);
+}
+
+.policy-panel .empty-state strong {
+  color: var(--console-ink);
+  font-size: 18px;
+}
+
+.policy-panel .empty-state svg {
+  color: var(--console-amber);
+}
+
+.policy-panel .empty-state span {
+  color: var(--console-ink2);
+  font-size: 15px;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -5013,6 +5364,10 @@ button:disabled {
   .audit-flow-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .policy-flow-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 960px) {
@@ -5079,12 +5434,14 @@ button:disabled {
   }
 
   .flight-panel,
-  .audit-panel {
+  .audit-panel,
+  .policy-panel {
     padding: 18px;
   }
 
   .flight-flow-strip,
-  .audit-flow-strip {
+  .audit-flow-strip,
+  .policy-flow-strip {
     grid-template-columns: 1fr;
   }
 

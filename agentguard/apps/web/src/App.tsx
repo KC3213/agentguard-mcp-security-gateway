@@ -866,7 +866,8 @@ export function App() {
     view === "tools" ||
     view === "approvals" ||
     view === "flight" ||
-    view === "audit";
+    view === "audit" ||
+    view === "policies";
 
   return (
     <div className={usesLightShell ? "app-shell console-shell" : "app-shell"}>
@@ -1701,7 +1702,7 @@ export function App() {
         )}
 
         {view === "policies" && (
-          <section className="panel">
+          <section className="panel policy-panel">
             <div className="section-title">
               <div>
                 <h2>Policy Editor</h2>
@@ -1712,6 +1713,14 @@ export function App() {
               <span className="count-pill">
                 {activePolicyCount}/{policies.length} active
               </span>
+            </div>
+            <div className="policy-flow-strip" aria-label="Policy Editor workflow">
+              {["Draft rule", "Set severity", "Enable record", "Save policy", "Govern actions"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
             </div>
             <div className="policy-editor-stack">
               <form className="policy-editor-form" onSubmit={savePolicy}>
