@@ -859,7 +859,7 @@ export function App() {
     setToast(`${policy.name} deleted`);
   }
 
-  const usesLightShell = view === "console" || view === "lab";
+  const usesLightShell = view === "console" || view === "lab" || view === "servers";
 
   return (
     <div className={usesLightShell ? "app-shell console-shell" : "app-shell"}>
@@ -1227,6 +1227,16 @@ export function App() {
                 <p className="muted">Register MCP servers, keep audit on, and discover tools through AgentGuard.</p>
               </div>
               <span className="count-pill">{mcpServers.length}</span>
+            </div>
+            <div className="server-flow-strip" aria-label="MCP Control Plane workflow">
+              {["Register config", "Test connection", "Discover tools", "Apply governance", "Audit history"].map(
+                (step, index) => (
+                  <span key={step}>
+                    <strong>{index + 1}</strong>
+                    {step}
+                  </span>
+                )
+              )}
             </div>
             <div className="server-control-layout">
               <div className="server-onboard-form">
