@@ -860,7 +860,14 @@ export function App() {
   }
 
   const usesLightShell =
-    view === "console" || view === "lab" || view === "servers" || view === "tools" || view === "approvals";
+    view === "console" ||
+    view === "lab" ||
+    view === "servers" ||
+    view === "tools" ||
+    view === "approvals" ||
+    view === "flight" ||
+    view === "audit" ||
+    view === "policies";
 
   return (
     <div className={usesLightShell ? "app-shell console-shell" : "app-shell"}>
@@ -1531,7 +1538,24 @@ export function App() {
         )}
 
         {view === "flight" && (
-          <section className="panel">
+          <section className="panel flight-panel">
+            <div className="section-title">
+              <div>
+                <h2>Flight Recorder</h2>
+                <p className="muted">
+                  Follow each agent run from prompt capture to gateway decision, MCP call, and final answer.
+                </p>
+              </div>
+              <span className="count-pill">{sessions.length}</span>
+            </div>
+            <div className="flight-flow-strip" aria-label="Flight Recorder workflow">
+              {["Pick session", "Read prompt", "Trace calls", "Inspect payloads", "Explain outcome"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
+            </div>
             <div className="flight-layout">
               <div className="session-column">
                 <div className="section-title compact-title">
@@ -1609,13 +1633,21 @@ export function App() {
         )}
 
         {view === "audit" && (
-          <section className="panel">
+          <section className="panel audit-panel">
             <div className="section-title">
               <div>
                 <h2>Tamper-Evident Audit Trail</h2>
                 <p className="muted">Readable event history with the raw payload available when you need it.</p>
               </div>
               <span className="count-pill">{auditEvents.length}</span>
+            </div>
+            <div className="audit-flow-strip" aria-label="Audit Log workflow">
+              {["Search event", "Sort trail", "Check hash", "Read summary", "Open payload"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
             </div>
             <div className="audit-toolbar">
               <label className="audit-search">
@@ -1670,7 +1702,7 @@ export function App() {
         )}
 
         {view === "policies" && (
-          <section className="panel">
+          <section className="panel policy-panel">
             <div className="section-title">
               <div>
                 <h2>Policy Editor</h2>
@@ -1681,6 +1713,14 @@ export function App() {
               <span className="count-pill">
                 {activePolicyCount}/{policies.length} active
               </span>
+            </div>
+            <div className="policy-flow-strip" aria-label="Policy Editor workflow">
+              {["Draft rule", "Set severity", "Enable record", "Save policy", "Govern actions"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
             </div>
             <div className="policy-editor-stack">
               <form className="policy-editor-form" onSubmit={savePolicy}>
