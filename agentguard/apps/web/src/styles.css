@@ -4346,6 +4346,555 @@ th,
   font-size: 15px;
 }
 
+.flight-panel,
+.audit-panel {
+  min-height: calc(100vh - 86px);
+  border: 0;
+  border-radius: 0;
+  padding: 22px 26px;
+  background: var(--console-cream);
+  color: var(--console-ink);
+  box-shadow: none;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+}
+
+.flight-panel .section-title,
+.audit-panel .section-title {
+  margin-bottom: 16px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  background: var(--console-white);
+  color: var(--console-ink);
+}
+
+.flight-panel .section-title h2,
+.audit-panel .section-title h2 {
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.flight-panel .section-title .muted,
+.audit-panel .section-title .muted {
+  margin: 5px 0 0;
+  color: var(--console-ink2);
+  font-size: 15px;
+}
+
+.flight-panel .count-pill {
+  min-width: 46px;
+  background: var(--console-blue-bg);
+  color: var(--console-blue-text);
+}
+
+.audit-panel .count-pill {
+  min-width: 46px;
+  background: var(--console-green-bg);
+  color: var(--console-green-text);
+}
+
+.flight-flow-strip,
+.audit-flow-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--console-white);
+}
+
+.flight-flow-strip span,
+.audit-flow-strip span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  border-radius: 11px;
+  background: var(--console-cream);
+  color: var(--console-ink2);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.flight-flow-strip strong,
+.audit-flow-strip strong {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.flight-flow-strip strong {
+  background: var(--console-blue-bg);
+  color: var(--console-blue-text);
+}
+
+.audit-flow-strip strong {
+  background: var(--console-green-bg);
+  color: var(--console-green-text);
+}
+
+.flight-panel .flight-layout {
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.flight-panel .session-column,
+.flight-panel .timeline-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 16px;
+  background: var(--console-white);
+  box-shadow: none;
+}
+
+.flight-panel .compact-title {
+  align-items: center;
+  margin-bottom: 14px;
+  border: 0;
+  border-bottom: 1px solid var(--console-border);
+  border-radius: 0;
+  padding: 0 0 13px;
+  background: transparent;
+}
+
+.flight-panel .compact-title h2 {
+  font-size: 22px;
+}
+
+.flight-panel .compact-title .muted {
+  color: var(--console-muted);
+  font-size: 14px;
+}
+
+.flight-panel .session-list {
+  gap: 10px;
+  max-height: 720px;
+  padding-right: 4px;
+}
+
+.flight-panel .session-list button {
+  border: 1.5px solid var(--console-border);
+  border-radius: 12px;
+  background: var(--console-cream);
+  padding: 13px;
+  color: var(--console-ink);
+}
+
+.flight-panel .session-list button:hover {
+  transform: translateY(-1px);
+  border-color: var(--console-border2);
+  background: var(--console-white);
+}
+
+.flight-panel .session-list .session-active {
+  border-color: var(--console-blue);
+  background: var(--console-blue-bg);
+  box-shadow: inset 4px 0 0 var(--console-blue);
+}
+
+.flight-panel .session-list strong {
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+}
+
+.flight-panel .session-list span {
+  color: var(--console-ink2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.flight-panel .session-list small {
+  color: var(--console-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.flight-panel .session-time,
+.audit-panel .session-time {
+  color: var(--console-muted);
+  font-size: 13px;
+}
+
+.flight-panel .session-time svg {
+  color: var(--console-blue);
+}
+
+.audit-panel .session-time svg {
+  color: var(--console-green);
+}
+
+.flight-panel .session-summary {
+  margin-bottom: 16px;
+  border-color: var(--console-border);
+  border-radius: 14px;
+  padding: 16px;
+  background: var(--console-cream);
+}
+
+.flight-panel .session-summary h2 {
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 24px;
+}
+
+.flight-panel .session-summary p {
+  color: var(--console-ink2);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.flight-panel .summary-grid {
+  gap: 10px;
+}
+
+.flight-panel .summary-item {
+  border-color: var(--console-border);
+  border-radius: 10px;
+  background: var(--console-white);
+}
+
+.flight-panel .summary-item span,
+.flight-panel .detail-row span,
+.flight-panel .payload-title,
+.audit-panel .detail-row span,
+.audit-panel .payload-title,
+.audit-panel .hash-grid span,
+.audit-search > span,
+.audit-sort > span {
+  color: var(--console-muted);
+  font-size: 12.5px;
+  letter-spacing: 0.5px;
+}
+
+.flight-panel .summary-item strong,
+.flight-panel .detail-row strong,
+.audit-panel .detail-row strong {
+  color: var(--console-ink);
+  font-size: 15px;
+}
+
+.flight-panel .answer {
+  border-color: #cbdff6;
+  border-left-color: var(--console-blue);
+  background: var(--console-blue-bg);
+  color: var(--console-blue-text);
+  font-size: 15px;
+}
+
+.flight-panel .timeline {
+  gap: 12px;
+}
+
+.flight-panel .timeline-item,
+.audit-panel .audit-card {
+  border: 1px solid var(--console-border);
+  border-radius: 14px;
+  background: var(--console-white);
+  box-shadow: none;
+}
+
+.flight-panel .timeline-item:hover,
+.audit-panel .audit-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--console-border2);
+}
+
+.flight-panel .timeline-icon,
+.audit-panel .audit-icon {
+  background: var(--console-blue-bg);
+  color: var(--console-blue);
+}
+
+.audit-panel .audit-icon {
+  background: var(--console-green-bg);
+  color: var(--console-green);
+}
+
+.flight-panel .timeline-head strong,
+.audit-panel .audit-title-row strong {
+  color: var(--console-ink);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+}
+
+.flight-panel .timeline-item p,
+.flight-panel .timeline-item small,
+.flight-panel .muted,
+.audit-panel .muted {
+  color: var(--console-ink2);
+}
+
+.flight-panel .payload-card,
+.audit-panel .payload-card {
+  border-color: var(--console-border);
+  border-radius: 12px;
+  background: var(--console-cream);
+}
+
+.flight-panel .payload-title {
+  color: var(--console-blue-text);
+}
+
+.audit-panel .payload-title {
+  color: var(--console-green-text);
+}
+
+.flight-panel .detail-row {
+  border-left-color: var(--console-blue);
+}
+
+.audit-panel .detail-row {
+  border-left-color: var(--console-green);
+}
+
+.flight-panel .reason-chip {
+  border-color: #cbdff6;
+  background: var(--console-blue-bg);
+  color: var(--console-blue-text);
+}
+
+.flight-panel .developer-payload,
+.audit-panel .developer-payload {
+  border-top-color: var(--console-border);
+}
+
+.flight-panel .developer-payload summary {
+  color: var(--console-blue-text);
+  font-size: 14px;
+}
+
+.audit-panel .developer-payload summary {
+  color: var(--console-green-text);
+  font-size: 14px;
+}
+
+.flight-panel .json-block,
+.audit-panel .json-block {
+  border-color: var(--console-border);
+  background: #fdfdfb;
+  color: var(--console-ink);
+  font-size: 13px;
+}
+
+.flight-panel .badge-low,
+.audit-panel .badge-low {
+  background: var(--console-green-bg);
+  color: var(--console-green-text);
+}
+
+.flight-panel .badge-medium,
+.audit-panel .badge-medium {
+  background: var(--console-amber-bg);
+  color: #8a5b00;
+}
+
+.flight-panel .badge-high,
+.audit-panel .badge-high {
+  background: #fff2dc;
+  color: #9a4a00;
+}
+
+.flight-panel .badge-critical,
+.audit-panel .badge-critical {
+  background: var(--console-red-bg);
+  color: #b91c1c;
+}
+
+.flight-panel .empty-state,
+.audit-panel .empty-state {
+  border-color: var(--console-border);
+  background: #fdfdfb;
+  color: var(--console-muted);
+}
+
+.flight-panel .empty-state strong,
+.audit-panel .empty-state strong {
+  color: var(--console-ink);
+  font-size: 18px;
+}
+
+.flight-panel .empty-state svg {
+  color: var(--console-blue);
+}
+
+.audit-panel .empty-state svg {
+  color: var(--console-green);
+}
+
+.flight-panel .empty-state span,
+.audit-panel .empty-state span {
+  color: var(--console-ink2);
+  font-size: 15px;
+}
+
+.audit-panel .audit-toolbar {
+  grid-template-columns: minmax(320px, 1fr) 240px 170px;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--console-white);
+}
+
+.audit-panel .audit-search,
+.audit-panel .audit-sort {
+  gap: 8px;
+}
+
+.audit-panel .input-with-icon svg {
+  color: var(--console-green);
+}
+
+.audit-panel .input-with-icon input,
+.audit-panel select {
+  min-height: 46px;
+  width: 100%;
+  border: 1.5px solid var(--console-border);
+  border-radius: 10px;
+  background: var(--console-cream);
+  color: var(--console-ink);
+  font-size: 15px;
+}
+
+.audit-panel .input-with-icon input:focus,
+.audit-panel select:focus {
+  border-color: var(--console-green);
+  background: var(--console-white);
+  box-shadow: none;
+}
+
+.audit-panel .audit-result-card {
+  min-height: 46px;
+  border-color: #c8ecd9;
+  border-radius: 10px;
+  background: var(--console-green-bg);
+}
+
+.audit-panel .audit-result-card strong {
+  color: var(--console-green-text);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 20px;
+}
+
+.audit-panel .audit-result-card span {
+  color: var(--console-green-text);
+  font-size: 12.5px;
+}
+
+.audit-panel .audit-list {
+  gap: 12px;
+}
+
+.audit-panel .audit-card {
+  padding: 16px;
+}
+
+.audit-panel .audit-meta {
+  gap: 8px;
+}
+
+.audit-panel .audit-meta span {
+  border-color: var(--console-border);
+  background: var(--console-cream);
+  color: var(--console-ink2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.audit-panel .audit-meta svg {
+  color: var(--console-green);
+}
+
+.audit-panel .hash-grid {
+  gap: 10px;
+}
+
+.audit-panel .hash-grid div {
+  border-color: var(--console-border);
+  border-radius: 12px;
+  background: var(--console-cream);
+}
+
+.audit-panel .hash-grid code {
+  color: var(--console-ink);
+  font-size: 13px;
+}
+
+.audit-panel .hash-grid small {
+  color: var(--console-muted);
+  font-size: 13px;
+}
+
+.audit-empty {
+  border-color: var(--console-border);
+  background: #fdfdfb;
+}
+
+.console-shell .audit-metrics-grid {
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.console-shell .audit-metrics-grid .metric-card {
+  min-height: 98px;
+  border: 1px solid var(--console-border);
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--console-white);
+  color: var(--console-ink);
+  box-shadow: none;
+}
+
+.console-shell .audit-metrics-grid .metric-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--console-border2);
+}
+
+.console-shell .audit-metrics-grid .metric-card p {
+  color: var(--console-muted);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.console-shell .audit-metrics-grid .metric-card strong {
+  color: var(--console-green-text);
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  font-size: 34px;
+}
+
+.console-shell .audit-metrics-grid .metric-card svg {
+  color: var(--console-green);
+}
+
+.console-shell .audit-metrics-grid .metric-card:nth-child(2) strong,
+.console-shell .audit-metrics-grid .metric-card:nth-child(2) svg {
+  color: var(--console-blue);
+}
+
+.console-shell .audit-metrics-grid .metric-card:nth-child(4) strong,
+.console-shell .audit-metrics-grid .metric-card:nth-child(4) svg {
+  color: var(--console-red);
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -4454,6 +5003,16 @@ button:disabled {
   .approval-flow-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .flight-panel .flight-layout,
+  .audit-panel .audit-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .flight-flow-strip,
+  .audit-flow-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 960px) {
@@ -4516,6 +5075,16 @@ button:disabled {
   }
 
   .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .flight-panel,
+  .audit-panel {
+    padding: 18px;
+  }
+
+  .flight-flow-strip,
+  .audit-flow-strip {
     grid-template-columns: 1fr;
   }
 
