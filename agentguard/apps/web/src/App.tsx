@@ -859,8 +859,10 @@ export function App() {
     setToast(`${policy.name} deleted`);
   }
 
+  const usesLightShell = view === "console" || view === "lab";
+
   return (
-    <div className={view === "console" ? "app-shell console-shell" : "app-shell"}>
+    <div className={usesLightShell ? "app-shell console-shell" : "app-shell"}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -1090,6 +1092,14 @@ export function App() {
                 <RefreshCw size={18} />
                 Scan MCP Tools
               </button>
+            </div>
+            <div className="lab-flow-strip" aria-label="MCP Lab workflow">
+              {["Choose tool", "Explain purpose", "Edit arguments", "Run gateway", "Inspect result"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
             </div>
             <div className="lab-layout">
               <div className="lab-builder">
