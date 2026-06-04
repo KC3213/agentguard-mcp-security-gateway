@@ -5,20 +5,24 @@ import {
   AlertTriangle,
   ArrowRight,
   Bot,
+  ChevronRight,
   CheckCircle2,
   Clock,
   Code2,
   ClipboardCheck,
   Database,
   FileSearch,
+  FileText,
   Hash,
   History,
+  Mail,
   Pencil,
   Play,
   Plus,
   RefreshCw,
   Save,
   Search,
+  Send,
   ServerCog,
   Shield,
   SlidersHorizontal,
@@ -65,6 +69,15 @@ const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
 type WorkflowState = "idle" | "active" | "done" | "blocked" | "waiting";
 type DetailRow = { label: string; value: string };
 type AuditSort = "newest" | "oldest" | "event-type" | "actor" | "hash";
+type AgentTaskRisk = "standard" | "high";
+type AgentTaskCard = {
+  prompt: string;
+  title: string;
+  meta: string;
+  preview: string;
+  icon: typeof Activity;
+  risk: AgentTaskRisk;
+};
 type PolicyFormState = {
   name: string;
   description: string;
@@ -79,6 +92,73 @@ const emptyPolicyForm = (): PolicyFormState => ({
   severity: "medium",
   enabled: true
 });
+
+const agentTaskCards: AgentTaskCard[] = [
+  {
+    prompt: demoPrompts[0],
+    title: "Create onboarding ticket",
+    meta: "Creates a synthetic workflow ticket",
+    preview: "Agent will create a safe demo ticket through the MCP gateway.",
+    icon: ClipboardCheck,
+    risk: "standard"
+  },
+  {
+    prompt: demoPrompts[1],
+    title: "Read support report",
+    meta: "Reads a public synthetic report",
+    preview: "Agent will read an allowlisted document and show the gateway result.",
+    icon: FileText,
+    risk: "standard"
+  },
+  {
+    prompt: demoPrompts[2],
+    title: "Query customers",
+    meta: "Runs a read-only SELECT query",
+    preview: "Agent will query the synthetic customer database with read-only SQL.",
+    icon: Database,
+    risk: "standard"
+  },
+  {
+    prompt: demoPrompts[4],
+    title: "Summarize and email",
+    meta: "Tests PII detection and approval",
+    preview: "Agent will summarize complaint data and route risky email behavior through approval checks.",
+    icon: Mail,
+    risk: "standard"
+  },
+  {
+    prompt: demoPrompts[3],
+    title: "Try DROP SQL",
+    meta: "Blocked mutation command demo",
+    preview: "AgentGuard should block this SQL mutation before it reaches the database tool.",
+    icon: Trash2,
+    risk: "high"
+  },
+  {
+    prompt: demoPrompts[5],
+    title: "Send external data",
+    meta: "External recipient risk demo",
+    preview: "AgentGuard should raise or block risk when fake customer data leaves the trusted boundary.",
+    icon: Send,
+    risk: "high"
+  },
+  {
+    prompt: demoPrompts[6],
+    title: "Send API key",
+    meta: "Secret leakage block demo",
+    preview: "AgentGuard should detect credentials and block the unsafe tool call.",
+    icon: AlertTriangle,
+    risk: "high"
+  },
+  {
+    prompt: demoPrompts[7],
+    title: "Unknown tool",
+    meta: "Unregistered tool block demo",
+    preview: "AgentGuard should deny tools that were not discovered and approved.",
+    icon: Wrench,
+    risk: "high"
+  }
+];
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
@@ -121,6 +201,15 @@ function MetricCard({ label, value, icon: Icon }: { label: string; value: number
 function workflowClass(state: WorkflowState) {
   return `workflow-step workflow-${state}`;
 }
+
+const workflowIcons: Record<string, typeof Activity> = {
+  Prompt: Bot,
+  Plan: Sparkles,
+  Policy: Shield,
+  MCP: Wrench,
+  Review: UserRound,
+  Audit: History
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -451,37 +540,80 @@ export function App() {
     () => approvals.filter((approval) => approval.status === "PENDING"),
     [approvals]
   );
+  const selectedAgentTask = useMemo(
+    () => agentTaskCards.find((task) => task.prompt === prompt) ?? null,
+    [prompt]
+  );
+  const standardAgentTasks = useMemo(() => agentTaskCards.filter((task) => task.risk === "standard"), []);
+  const highRiskAgentTasks = useMemo(() => agentTaskCards.filter((task) => task.risk === "high"), []);
+  const promptReady = prompt.trim().length > 0;
+  const customPromptValue = selectedAgentTask ? "" : prompt;
+  const taskPreview = selectedAgentTask
+    ? selectedAgentTask.preview
+    : promptReady
+      ? "Custom task -- the deterministic agent will interpret this prompt and route tool calls through AgentGuard."
+      : "";
+  const activeConsoleSession = useMemo(
+    () => (activeSession?.prompt === prompt ? activeSession : null),
+    [activeSession, prompt]
+  );
+  const consoleRunLabel = loading
+    ? "Running"
+    : activeConsoleSession
+      ? humanizeLabel(activeConsoleSession.status)
+      : promptReady
+        ? "Draft ready"
+        : "Waiting";
+  const consoleRunTone = loading
+    ? "running"
+    : activeConsoleSession?.status === "BLOCKED"
+      ? "blocked"
+      : activeConsoleSession?.status === "WAITING_FOR_APPROVAL"
+        ? "waiting"
+        : activeConsoleSession
+          ? "done"
+          : "draft";
+  const consoleDecisionText = loading
+    ? "Running gateway checks"
+    : activeConsoleSession?.status === "COMPLETED"
+      ? "Approved -- task complete"
+      : activeConsoleSession?.status === "BLOCKED"
+        ? "Blocked -- unsafe action stopped"
+        : activeConsoleSession?.status === "WAITING_FOR_APPROVAL"
+          ? "Approval required -- waiting for review"
+          : "Ready to inspect the next run";
   const workflowStages = useMemo(() => {
-    const calls = activeSession?.toolCalls ?? [];
-    const hasSession = Boolean(activeSession);
-    const hasBlocked = activeSession?.status === "BLOCKED" || calls.some((call) => call.status.includes("BLOCK"));
-    const isWaiting = activeSession?.status === "WAITING_FOR_APPROVAL";
+    const calls = activeConsoleSession?.toolCalls ?? [];
+    const hasPrompt = prompt.trim().length > 0;
+    const hasSession = Boolean(activeConsoleSession);
+    const hasBlocked = activeConsoleSession?.status === "BLOCKED" || calls.some((call) => call.status.includes("BLOCK"));
+    const isWaiting = activeConsoleSession?.status === "WAITING_FOR_APPROVAL";
     const hasExecuted = calls.some((call) => call.status.includes("EXECUTED"));
 
     return [
       {
         label: "Prompt",
-        detail: hasSession ? "Request captured" : "Write or choose a task",
+        detail: loading ? "Request captured" : hasSession ? "Request captured" : hasPrompt ? "Draft ready" : "Write or choose a task",
         view: "console" as View,
-        state: hasSession ? "done" : "active"
+        state: loading || hasSession ? "done" : hasPrompt ? "active" : "idle"
       },
       {
         label: "Plan",
-        detail: hasSession ? `${activeSession?.planned.length ?? 0} tool call(s)` : "Planner is ready",
+        detail: loading ? "Planner is mapping tools" : hasSession ? `${activeConsoleSession?.planned.length ?? 0} tool call(s)` : "Planner is ready",
         view: "console" as View,
-        state: hasSession ? "done" : "idle"
+        state: loading ? "active" : hasSession ? "done" : hasPrompt ? "waiting" : "idle"
       },
       {
         label: "Policy",
-        detail: hasBlocked ? "Unsafe action caught" : hasSession ? "Risk checks applied" : "Waiting for a run",
+        detail: loading ? "Firewall is checking risk" : hasBlocked ? "Unsafe action caught" : hasSession ? "Risk checks applied" : "Waiting for a run",
         view: "tools" as View,
-        state: hasBlocked ? "blocked" : hasSession ? "done" : "idle"
+        state: loading ? "waiting" : hasBlocked ? "blocked" : hasSession ? "done" : "idle"
       },
       {
-        label: "Action",
-        detail: hasExecuted ? "MCP tool executed" : isWaiting ? "Paused safely" : "No tool output yet",
+        label: "MCP",
+        detail: loading ? "Tool call queued" : hasExecuted ? "MCP tool executed" : isWaiting ? "Paused safely" : "No tool output yet",
         view: "flight" as View,
-        state: hasExecuted ? "done" : isWaiting ? "waiting" : "idle"
+        state: loading ? "idle" : hasExecuted ? "done" : isWaiting ? "waiting" : "idle"
       },
       {
         label: "Review",
@@ -491,12 +623,12 @@ export function App() {
       },
       {
         label: "Audit",
-        detail: metrics.calls ? "Recorded in timeline" : "Audit trail ready",
+        detail: loading ? "Audit event pending" : hasSession ? "Recorded in timeline" : "Audit trail ready",
         view: "audit" as View,
-        state: metrics.calls ? "done" : "idle"
+        state: hasSession ? "done" : "idle"
       }
     ] satisfies Array<{ label: string; detail: string; view: View; state: WorkflowState }>;
-  }, [activeSession, metrics.calls, pendingApprovals.length]);
+  }, [activeConsoleSession, loading, pendingApprovals.length, prompt]);
   const selectedFlightSession = activeSession ?? sessions[0] ?? null;
   const selectedFlightCalls = selectedFlightSession?.toolCalls ?? toolCalls.slice(0, 8);
   const selectedLabTool = useMemo(
@@ -727,8 +859,11 @@ export function App() {
     setToast(`${policy.name} deleted`);
   }
 
+  const usesLightShell =
+    view === "console" || view === "lab" || view === "servers" || view === "tools" || view === "approvals";
+
   return (
-    <div className="app-shell">
+    <div className={usesLightShell ? "app-shell console-shell" : "app-shell"}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -790,64 +925,156 @@ export function App() {
         {view === "console" && (
           <section className="panel console-panel">
             <section className="workflow-rail console-workflow-rail" aria-label="AgentGuard workflow">
-              <div className="workflow-title">
-                <Workflow size={18} />
-                <span>Console workflow</span>
+              <div className="console-workflow-head">
+                <div className="workflow-title">
+                  <Workflow size={14} />
+                  <span>Console workflow</span>
+                </div>
+                <div className={`console-run-pill console-run-${consoleRunTone}`}>
+                  <span aria-hidden="true" />
+                  <strong>{consoleRunLabel}</strong>
+                </div>
               </div>
               <div className="workflow-steps">
-                {workflowStages.map((stage, index) => (
-                  <button key={stage.label} className={workflowClass(stage.state)} onClick={() => setView(stage.view)}>
-                    <span className="workflow-index">{index + 1}</span>
-                    <span>
-                      <strong>{stage.label}</strong>
-                      <small>{stage.detail}</small>
-                    </span>
-                    {index < workflowStages.length - 1 ? <ArrowRight size={15} className="workflow-arrow" /> : null}
-                  </button>
-                ))}
+                {workflowStages.map((stage, index) => {
+                  const StageIcon = workflowIcons[stage.label] ?? Workflow;
+                  return (
+                    <button key={stage.label} className={workflowClass(stage.state)} onClick={() => setView(stage.view)}>
+                      <span className="workflow-index">
+                        <StageIcon size={14} />
+                      </span>
+                      <span>
+                        <strong>{stage.label}</strong>
+                        <small>{stage.detail}</small>
+                      </span>
+                      {index < workflowStages.length - 1 ? <ArrowRight size={15} className="workflow-arrow" /> : null}
+                    </button>
+                  );
+                })}
               </div>
             </section>
             <div className="console-layout">
               <div className="console-input">
-                <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">Step 1</span>
+                <div className="panel-heading task-panel-heading">
+                  <div className="task-panel-copy">
+                    <span className="task-step-row">
+                      <span>1</span>
+                      Agent input
+                    </span>
                     <h2>Choose an agent task</h2>
+                    <p>Pick a common workflow, try a risky demo, or write your own prompt.</p>
                   </div>
-                  <Bot size={22} />
+                  <span className="step-badge">Step 1</span>
                 </div>
-                <label htmlFor="prompt">Prompt</label>
-                <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
-                <div className="scenario-grid">
-                  {demoPrompts.map((item) => (
-                    <button key={item} className={prompt === item ? "scenario-active" : ""} onClick={() => setPrompt(item)}>
-                      {item}
+                <div className="console-task-body">
+                  <span className="task-section-label">Recommended tasks</span>
+                  <div className="agent-task-grid">
+                    {standardAgentTasks.map((task) => {
+                      const Icon = task.icon;
+                      const selected = prompt === task.prompt;
+                      return (
+                        <button
+                          className={selected ? "agent-task-card selected" : "agent-task-card"}
+                          key={task.prompt}
+                          onClick={() => setPrompt(task.prompt)}
+                          aria-pressed={selected}
+                          type="button"
+                        >
+                          <span className="task-icon-box">
+                            <Icon size={17} />
+                          </span>
+                          <span className="task-copy">
+                            <strong>{task.title}</strong>
+                            <small>{task.meta}</small>
+                          </span>
+                          <ChevronRight className="task-chevron" size={15} />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="divider-label">High-risk demos</div>
+
+                  <div className="agent-task-grid">
+                    {highRiskAgentTasks.map((task) => {
+                      const Icon = task.icon;
+                      const selected = prompt === task.prompt;
+                      return (
+                        <button
+                          className={selected ? "agent-task-card danger selected" : "agent-task-card danger"}
+                          key={task.prompt}
+                          onClick={() => setPrompt(task.prompt)}
+                          aria-pressed={selected}
+                          type="button"
+                        >
+                          <span className="task-icon-box">
+                            <Icon size={17} />
+                          </span>
+                          <span className="task-copy">
+                            <strong>{task.title}</strong>
+                            <small>{task.meta}</small>
+                          </span>
+                          <span className="risk-badge">Blocked</span>
+                          <ChevronRight className="task-chevron" size={15} />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="divider-label">Or write your own</div>
+
+                  <div className="custom-prompt-wrap">
+                    <textarea
+                      id="prompt"
+                      placeholder="Example: Summarize support tickets and create a follow-up task"
+                      value={customPromptValue}
+                      onChange={(event) => setPrompt(event.target.value)}
+                    />
+                    <button
+                      aria-label="Clear custom prompt"
+                      className={customPromptValue.trim().length > 0 ? "clear-prompt show" : "clear-prompt"}
+                      onClick={() => setPrompt("")}
+                      type="button"
+                    >
+                      <X size={15} />
                     </button>
-                  ))}
+                  </div>
+
+                  {taskPreview ? (
+                    <div className="selected-preview">
+                      <Sparkles size={16} />
+                      <span>{taskPreview}</span>
+                    </div>
+                  ) : null}
                 </div>
-                <button className="primary-button" onClick={runSession} disabled={loading}>
+                <button className="primary-button" onClick={runSession} disabled={loading || !promptReady}>
                   {loading ? <Sparkles size={18} /> : <Play size={18} />}
                   {loading ? "Running workflow" : "Run Agent"}
                 </button>
               </div>
               <div className="console-output">
                 <div className="panel-heading">
-                  <div>
-                    <span className="section-kicker">Step 2</span>
-                    <h2>Inspect gateway decision</h2>
-                  </div>
-                  <Shield size={22} />
+                  <h2>
+                    <Shield size={15} />
+                    Gateway decision
+                  </h2>
+                  <span className="step-badge">Step 2</span>
                 </div>
-                {activeSession ? (
-                  <>
-                    <p className="answer">{activeSession.finalAnswer}</p>
-                    <Timeline calls={activeSession.toolCalls ?? []} />
-                  </>
+                <div className={`gateway-status-strip gateway-status-${consoleRunTone}`}>
+                  <CheckCircle2 size={15} />
+                  <span>{activeConsoleSession?.finalAnswer ?? consoleDecisionText}</span>
+                </div>
+                {activeConsoleSession ? (
+                  <ConsoleToolTimeline calls={activeConsoleSession.toolCalls ?? []} />
                 ) : (
                   <div className="empty-state">
                     <Workflow size={28} />
-                    <strong>No workflow run yet</strong>
-                    <span>Pick a scenario and run the agent to see policy checks, MCP calls, approvals, and audit events.</span>
+                    <strong>{activeSession ? "Prompt changed since last run" : "No workflow run yet"}</strong>
+                    <span>
+                      {activeSession
+                        ? "Run this prompt to refresh the flow and gateway decision."
+                        : "Pick a scenario and run the agent to see policy checks, MCP calls, approvals, and audit events."}
+                    </span>
                   </div>
                 )}
               </div>
@@ -866,6 +1093,14 @@ export function App() {
                 <RefreshCw size={18} />
                 Scan MCP Tools
               </button>
+            </div>
+            <div className="lab-flow-strip" aria-label="MCP Lab workflow">
+              {["Choose tool", "Explain purpose", "Edit arguments", "Run gateway", "Inspect result"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
             </div>
             <div className="lab-layout">
               <div className="lab-builder">
@@ -994,6 +1229,16 @@ export function App() {
               </div>
               <span className="count-pill">{mcpServers.length}</span>
             </div>
+            <div className="server-flow-strip" aria-label="MCP Control Plane workflow">
+              {["Register config", "Test connection", "Discover tools", "Apply governance", "Audit history"].map(
+                (step, index) => (
+                  <span key={step}>
+                    <strong>{index + 1}</strong>
+                    {step}
+                  </span>
+                )
+              )}
+            </div>
             <div className="server-control-layout">
               <div className="server-onboard-form">
                 <div className="panel-heading">
@@ -1121,84 +1366,166 @@ export function App() {
         )}
 
         {view === "tools" && (
-          <section className="panel">
+          <section className="panel tool-panel">
             <div className="section-title">
-              <h2>Registered Tools</h2>
-              <button className="secondary-button" onClick={scanTools} disabled={loading}>
-                <RefreshCw size={18} />
-                Scan
-              </button>
+              <div>
+                <h2>Registered Tools</h2>
+                <p className="muted">Review discovered MCP tools, risk scores, trust signals, and runtime approval status.</p>
+              </div>
+              <div className="tool-title-actions">
+                <span className="count-pill">{tools.length}</span>
+                <button className="secondary-button" onClick={scanTools} disabled={loading}>
+                  <RefreshCw size={18} />
+                  Scan Tools
+                </button>
+              </div>
             </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Tool</th>
-                    <th>Status</th>
-                    <th>Risk</th>
-                    <th>Trust</th>
-                    <th>Reasons</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tools.map((tool) => (
-                    <tr key={tool.id}>
-                      <td>
-                        <strong>{tool.name}</strong>
-                        <span>{tool.description}</span>
-                      </td>
-                      <td>{tool.status}</td>
-                      <td>
-                        <span className={riskClass(tool.riskLevel)}>{tool.riskScore}</span>
-                      </td>
-                      <td>{tool.trustScore}</td>
-                      <td>{tool.reasons.join(", ")}</td>
-                      <td>
-                        <div className="button-row">
-                          <button onClick={() => updateToolStatus(tool, "APPROVED")}>Approve</button>
-                          <button onClick={() => updateToolStatus(tool, "REQUIRES_APPROVAL")}>Review</button>
-                          <button onClick={() => updateToolStatus(tool, "BLOCKED")}>Block</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="tool-flow-strip" aria-label="Tool Registry workflow">
+              {["Discover tools", "Score risk", "Review reasons", "Set status", "Enforce gateway"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
+            </div>
+            <div className="tool-registry-grid">
+              {tools.map((tool) => (
+                <article className="tool-registry-card" key={tool.id}>
+                  <div className="tool-card-head">
+                    <div>
+                      <span className="session-time">
+                        <Shield size={14} />
+                        MCP tool
+                      </span>
+                      <strong>{tool.name}</strong>
+                    </div>
+                    <span className={statusBadgeClass(tool.status)}>{humanizeLabel(tool.status)}</span>
+                  </div>
+                  <p>{tool.description}</p>
+                  <div className="tool-score-grid">
+                    <div>
+                      <span>Risk</span>
+                      <strong className={riskClass(tool.riskLevel)}>
+                        {tool.riskLevel} / {tool.riskScore}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Trust</span>
+                      <strong>{tool.trustScore}</strong>
+                    </div>
+                    <div>
+                      <span>Status</span>
+                      <strong>{humanizeLabel(tool.status)}</strong>
+                    </div>
+                  </div>
+                  <div className="tool-reason-list">
+                    {tool.reasons.length ? (
+                      tool.reasons.map((reason) => <span key={reason}>{reason}</span>)
+                    ) : (
+                      <span>No scanner reasons recorded</span>
+                    )}
+                  </div>
+                  <div className="button-row">
+                    <button onClick={() => updateToolStatus(tool, "APPROVED")}>Approve</button>
+                    <button onClick={() => updateToolStatus(tool, "REQUIRES_APPROVAL")}>Review</button>
+                    <button onClick={() => updateToolStatus(tool, "BLOCKED")}>Block</button>
+                  </div>
+                </article>
+              ))}
+              {!tools.length ? (
+                <div className="empty-state tool-empty">
+                  <Shield size={28} />
+                  <strong>No tools discovered</strong>
+                  <span>Scan MCP tools to populate the registry with risk, trust, and policy status.</span>
+                </div>
+              ) : null}
             </div>
           </section>
         )}
 
         {view === "approvals" && (
-          <section className="panel">
+          <section className="panel approval-panel">
             <div className="section-title">
-              <h2>Pending Reviews</h2>
-              <span className="count-pill">{pendingApprovals.length}</span>
+              <div>
+                <h2>Pending Reviews</h2>
+                <p className="muted">Review raw tool arguments before approving, redacting, or rejecting risky agent actions.</p>
+              </div>
+              <div className="approval-title-actions">
+                <span className="count-pill">{pendingApprovals.length}</span>
+              </div>
+            </div>
+            <div className="approval-flow-strip" aria-label="Approvals workflow">
+              {["Open request", "Read raw args", "Check risk", "Decide action", "Audit outcome"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
             </div>
             <div className="approval-grid">
               {approvals.map((approval) => (
                 <article className="approval-card" key={approval.id}>
                   <div className="approval-head">
-                    <strong>{approval.toolCall?.toolName}</strong>
-                    <span>{approval.status}</span>
+                    <div>
+                      <span className="session-time">
+                        <ClipboardCheck size={14} />
+                        {formatDateTime(approval.createdAt)}
+                      </span>
+                      <strong>{humanizeLabel(approval.toolCall?.toolName ?? "Unknown tool")}</strong>
+                    </div>
+                    <span className={statusBadgeClass(approval.status)}>{humanizeLabel(approval.status)}</span>
                   </div>
+                  <div className="approval-meta-grid">
+                    <div>
+                      <span>Requested by</span>
+                      <strong>{approval.requestedBy}</strong>
+                    </div>
+                    <div>
+                      <span>Reviewed by</span>
+                      <strong>{approval.reviewedBy ?? "Not reviewed"}</strong>
+                    </div>
+                    <div>
+                      <span>Tool call</span>
+                      <strong>{approval.toolCall?.decision ? humanizeLabel(approval.toolCall.decision) : "Pending"}</strong>
+                    </div>
+                  </div>
+                  <p>{approval.toolCall?.purpose ?? "Review this tool call before it can continue."}</p>
+                  <span className="approval-json-title">Raw tool arguments</span>
                   <JsonBlock value={approval.rawArguments} />
+                  {approval.redactedArgs ? (
+                    <>
+                      <span className="approval-json-title">Redacted arguments</span>
+                      <JsonBlock value={approval.redactedArgs} />
+                    </>
+                  ) : null}
                   <div className="button-row">
                     <button disabled={approval.status !== "PENDING"} onClick={() => reviewApproval(approval, "approve")}>
                       Approve
                     </button>
                     <button
+                      className="approval-redact-action"
                       disabled={approval.status !== "PENDING"}
                       onClick={() => reviewApproval(approval, "redact-approve")}
                     >
                       Redact & Approve
                     </button>
-                    <button disabled={approval.status !== "PENDING"} onClick={() => reviewApproval(approval, "reject")}>
+                    <button
+                      className="approval-danger-action"
+                      disabled={approval.status !== "PENDING"}
+                      onClick={() => reviewApproval(approval, "reject")}
+                    >
                       Reject
                     </button>
                   </div>
                 </article>
               ))}
+              {!approvals.length ? (
+                <div className="empty-state approval-empty">
+                  <ClipboardCheck size={28} />
+                  <strong>No approvals yet</strong>
+                  <span>Run a risky workflow to create an approval request with raw tool arguments for review.</span>
+                </div>
+              ) : null}
             </div>
           </section>
         )}
@@ -1458,6 +1785,90 @@ export function App() {
           </section>
         )}
       </main>
+    </div>
+  );
+}
+
+function consoleToolTone(call: ToolCall) {
+  if (call.status.includes("BLOCK") || call.decision === "BLOCK") return "block";
+  if (call.decision === "REQUIRE_APPROVAL" || call.status.includes("PENDING")) return "warn";
+  return "ok";
+}
+
+function consoleTagClass(reason: string) {
+  const normalized = reason.toLowerCase();
+  if (normalized.includes("secret") || normalized.includes("blocked") || normalized.includes("mutation")) {
+    return "tag block";
+  }
+  if (normalized.includes("approval") || normalized.includes("review")) return "tag info";
+  if (normalized.includes("pii") || normalized.includes("external") || normalized.includes("risk")) return "tag warn";
+  return "tag ok";
+}
+
+function consoleDecisionLabel(call: ToolCall) {
+  if (call.decision === "ALLOW_WITH_LOG") return "Logged";
+  if (call.decision === "REQUIRE_APPROVAL") return "Review";
+  return humanizeLabel(call.decision);
+}
+
+function ConsoleToolTimeline({ calls }: { calls: ToolCall[] }) {
+  if (!calls.length) {
+    return (
+      <div className="empty-state console-output-empty">
+        <Workflow size={28} />
+        <strong>No tool calls recorded</strong>
+        <span>The gateway will show each MCP call here after the agent runs.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="console-tool-list">
+      {calls.map((call) => {
+        const tone = consoleToolTone(call);
+        return (
+          <article className="console-tool-row" key={call.id}>
+            <div className="console-tool-header">
+              <span className={`console-tool-dot console-tool-dot-${tone}`} />
+              <strong>{humanizeLabel(call.toolName)}</strong>
+              <time>{formatDateTime(call.createdAt)}</time>
+              <span className={`tag ${tone === "block" ? "block" : tone === "warn" ? "warn" : "info"}`}>
+                {consoleDecisionLabel(call)}
+              </span>
+            </div>
+            <p>{call.purpose}</p>
+            <div className="console-tool-detail">
+              <div className="console-tool-col">
+                <span>Input to MCP</span>
+                {formatToolArguments(call).map((row) => (
+                  <div className="console-field-row" key={row.label}>
+                    <span className="field-dot" />
+                    <strong>{row.label}</strong>
+                    <small>{row.value}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="console-tool-col console-tool-col-right">
+                <span>Gateway result</span>
+                {formatToolOutput(call).map((row) => (
+                  <div className="console-field-row" key={row.label}>
+                    <span className="field-dot field-dot-ok" />
+                    <strong>{row.label}</strong>
+                    <small>{row.value}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="console-tags">
+              {call.reasons.map((reason) => (
+                <span className={consoleTagClass(reason)} key={reason}>
+                  {reason}
+                </span>
+              ))}
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }

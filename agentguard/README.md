@@ -67,6 +67,32 @@ The API runs at:
 http://localhost:4000
 ```
 
+## Troubleshooting Local Runs
+
+If the dashboard opens but running the agent says `Failed to fetch`, the React app is running but the API is not reachable.
+
+Check the API:
+
+```bash
+curl http://localhost:4000/api/health
+```
+
+If that fails, stop any old Vite-only process and start the full stack from this folder:
+
+```bash
+cd "/Users/kachadha/Documents/my project/agentguard"
+npm run dev
+```
+
+You should see both of these:
+
+```text
+AgentGuard API listening on http://localhost:4000
+VITE ready at http://localhost:5173
+```
+
+If `5173` is already in use, Vite may open `5174`; that is fine as long as the API is also running on `4000`.
+
 No-install fallback:
 
 ```bash
