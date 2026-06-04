@@ -859,7 +859,7 @@ export function App() {
     setToast(`${policy.name} deleted`);
   }
 
-  const usesLightShell = view === "console" || view === "lab" || view === "servers";
+  const usesLightShell = view === "console" || view === "lab" || view === "servers" || view === "tools";
 
   return (
     <div className={usesLightShell ? "app-shell console-shell" : "app-shell"}>
@@ -1365,50 +1365,79 @@ export function App() {
         )}
 
         {view === "tools" && (
-          <section className="panel">
+          <section className="panel tool-panel">
             <div className="section-title">
-              <h2>Registered Tools</h2>
-              <button className="secondary-button" onClick={scanTools} disabled={loading}>
-                <RefreshCw size={18} />
-                Scan
-              </button>
+              <div>
+                <h2>Registered Tools</h2>
+                <p className="muted">Review discovered MCP tools, risk scores, trust signals, and runtime approval status.</p>
+              </div>
+              <div className="tool-title-actions">
+                <span className="count-pill">{tools.length}</span>
+                <button className="secondary-button" onClick={scanTools} disabled={loading}>
+                  <RefreshCw size={18} />
+                  Scan Tools
+                </button>
+              </div>
             </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Tool</th>
-                    <th>Status</th>
-                    <th>Risk</th>
-                    <th>Trust</th>
-                    <th>Reasons</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tools.map((tool) => (
-                    <tr key={tool.id}>
-                      <td>
-                        <strong>{tool.name}</strong>
-                        <span>{tool.description}</span>
-                      </td>
-                      <td>{tool.status}</td>
-                      <td>
-                        <span className={riskClass(tool.riskLevel)}>{tool.riskScore}</span>
-                      </td>
-                      <td>{tool.trustScore}</td>
-                      <td>{tool.reasons.join(", ")}</td>
-                      <td>
-                        <div className="button-row">
-                          <button onClick={() => updateToolStatus(tool, "APPROVED")}>Approve</button>
-                          <button onClick={() => updateToolStatus(tool, "REQUIRES_APPROVAL")}>Review</button>
-                          <button onClick={() => updateToolStatus(tool, "BLOCKED")}>Block</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="tool-flow-strip" aria-label="Tool Registry workflow">
+              {["Discover tools", "Score risk", "Review reasons", "Set status", "Enforce gateway"].map((step, index) => (
+                <span key={step}>
+                  <strong>{index + 1}</strong>
+                  {step}
+                </span>
+              ))}
+            </div>
+            <div className="tool-registry-grid">
+              {tools.map((tool) => (
+                <article className="tool-registry-card" key={tool.id}>
+                  <div className="tool-card-head">
+                    <div>
+                      <span className="session-time">
+                        <Shield size={14} />
+                        MCP tool
+                      </span>
+                      <strong>{tool.name}</strong>
+                    </div>
+                    <span className={statusBadgeClass(tool.status)}>{humanizeLabel(tool.status)}</span>
+                  </div>
+                  <p>{tool.description}</p>
+                  <div className="tool-score-grid">
+                    <div>
+                      <span>Risk</span>
+                      <strong className={riskClass(tool.riskLevel)}>
+                        {tool.riskLevel} / {tool.riskScore}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Trust</span>
+                      <strong>{tool.trustScore}</strong>
+                    </div>
+                    <div>
+                      <span>Status</span>
+                      <strong>{humanizeLabel(tool.status)}</strong>
+                    </div>
+                  </div>
+                  <div className="tool-reason-list">
+                    {tool.reasons.length ? (
+                      tool.reasons.map((reason) => <span key={reason}>{reason}</span>)
+                    ) : (
+                      <span>No scanner reasons recorded</span>
+                    )}
+                  </div>
+                  <div className="button-row">
+                    <button onClick={() => updateToolStatus(tool, "APPROVED")}>Approve</button>
+                    <button onClick={() => updateToolStatus(tool, "REQUIRES_APPROVAL")}>Review</button>
+                    <button onClick={() => updateToolStatus(tool, "BLOCKED")}>Block</button>
+                  </div>
+                </article>
+              ))}
+              {!tools.length ? (
+                <div className="empty-state tool-empty">
+                  <Shield size={28} />
+                  <strong>No tools discovered</strong>
+                  <span>Scan MCP tools to populate the registry with risk, trust, and policy status.</span>
+                </div>
+              ) : null}
             </div>
           </section>
         )}
